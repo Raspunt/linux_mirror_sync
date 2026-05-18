@@ -83,7 +83,7 @@ Created automatically with sensible defaults on the first run.
 
 ```json
 {
-  "baseUrl": "rsync://mirror.yandex.ru/",
+  "baseUrl": "rsync://mirror.ps.kz/",
   "targetDir": "/mnt/big/mirrors/",
   "logDir": "~/.cache/jazzy",
   "distros": {
@@ -95,11 +95,21 @@ Created automatically with sensible defaults on the first run.
     "debian": {
       "sourcePath": "debian/",
       "enabled": true,
-      "sourceHost": "mirror.yandex.ru",
-      "sourceRoot": "/debian",
-      "dist": "trixie",
-      "arch": "amd64",
-      "repos": ["main", "contrib", "non-free", "non-free-firmware"]
+      "repos": ["main", "contrib", "non-free", "non-free-firmware"],
+      "properties": {
+        "host": "mirror.ps.kz",
+        "root": "/debian",
+        "dist": "trixie",
+        "arch": "amd64",
+        "section": "main,contrib,non-free,non-free-firmware"
+      }
+    },
+    "fedora": {
+      "sourcePaths": [
+        "fedora/linux/releases/44/"
+      ],
+      "enabled": true,
+      "repos": []
     }
   }
 }
@@ -117,14 +127,11 @@ Created automatically with sensible defaults on the first run.
 
 | Field | Description | Applies to |
 |-------|-------------|------------|
-| `sourcePath` | Path on the rsync server | All |
+| `sourcePath` | Path on the rsync server (single source) | All |
+| `sourcePaths` | List of paths for multi-source sync | Fedora, or any distro |
 | `enabled` | Enable or disable this distribution | All |
-| `repos` | Whitelist of repositories/sections | All (Arch: repo names; Debian: overrides `section`) |
-| `sourceHost` | Debian mirror hostname | Debian only |
-| `sourceRoot` | Debian mirror root path on server | Debian only |
-| `dist` | Debian release codename | Debian only |
-| `arch` | Debian architecture | Debian only |
-| `section` | Debian sections (comma-separated) | Debian only (fallback if `repos` not set) |
+| `repos` | Whitelist/filters (Arch: repo names; Debian: sections; Fedora: editions) | All |
+| `properties` | Extra key-value settings (Debian: host, root, dist, arch, section) | Debian only |
 
 ### Arch repository whitelist
 
