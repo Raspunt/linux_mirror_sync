@@ -1,11 +1,15 @@
-package org.example.mirrors;
+package org.example.mirror.distros;
 
-import org.example.LogManager;
+import org.example.mirror.api.*;
+import org.example.mirror.core.*;
+import org.example.mirror.strategies.*;
+import org.example.mirror.checkers.*;
+
+import org.example.logging.LogManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -21,12 +25,23 @@ public class ArchMirror extends AbstractMirror {
 
     public ArchMirror(String sourceUrl, Path targetDir, Path logDir, LogManager logger,
                       List<String> excludes, List<String> repos) {
-        super("archlinux", targetDir, logger);
+        super("archlinux", targetDir, logger,
+              new RsyncStrategy(excludes, repos),
+              buildCheckers(logger));
         this.sourceUrl = sourceUrl.endsWith("/") ? sourceUrl : sourceUrl + "/";
         this.cacheDir = targetDir.resolve(".cache");
         this.logDir = logDir;
         this.excludes = excludes != null ? excludes : List.of();
         this.repos = repos != null ? repos : List.of();
+    }
+
+    private static List<IntegrityChecker> buildCheckers(LogManager logger) {
+        List<IntegrityChecker> checkers = new ArrayList<>();
+        var zstdChecker = new ExternalToolChecker(List.of("zstd", "-t"), 60, logger, "archlinux");
+        if (zstdChecker.isAvailable()) {
+            checkers.add(zstdChecker);
+        }
+        return checkers;
     }
 
     @Override
@@ -45,14 +60,14 @@ public class ArchMirror extends AbstractMirror {
     public void checkRepo() {
         logger.info("[" + name + "] checking for updates...");
         try {
-            String remote = fetchLastUpdate();
+            String remote = fetchLastUpdateQuiet();
             if (remote == null || remote.isBlank()) {
                 logger.error("[" + name + "] cannot fetch lastupdate");
                 return;
             }
             logger.info("[" + name + "] remote lastupdate: " + remote);
 
-            Path lastUpdateFile = cacheDir.resolve("lastupdate");
+            Path lastUpdateFile = getLastSyncFile();
             String local = Files.exists(lastUpdateFile) ? Files.readString(lastUpdateFile).trim() : "";
 
             if (remote.equals(local)) {
@@ -87,17 +102,10 @@ public class ArchMirror extends AbstractMirror {
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
             Path logFile = logDir.resolve("sync-" + timestamp + ".log");
 
-            List<String> cmd = new ArrayList<>(List.of(
-                "rsync", "--contimeout=60", "--timeout=300",
-                "-rtlvHv", "--safe-links", "--delete-after",
-                "--delay-updates", "--no-motd", "--partial",
-                "--info=progress2",
-                "--log-file=" + logFile.toString(),
-                "--log-file-format=%f"
-            ));
-            cmd.addAll(buildFilterArgs());
-            cmd.add(sourceUrl);
-            cmd.add(targetDir.toString());
+            List<String> cmd = new ArrayList<>(syncStrategy.buildSyncCommand(sourceUrl, targetDir));
+            // inject log-file args before sourceUrl and targetDir
+            cmd.add(cmd.size() - 2, "--log-file=" + logFile.toString());
+            cmd.add(cmd.size() - 2, "--log-file-format=%f");
 
             ProcessResult result = runProcess(cmd, 120);
             if (result.exitCode() != 0) {
@@ -105,7 +113,6 @@ public class ArchMirror extends AbstractMirror {
                 return;
             }
 
-            // update lastupdate
             runProcess(List.of("rsync", "--contimeout=60", "--timeout=120",
                 sourceUrl + "lastupdate", cacheDir.resolve("lastupdate").toString()), 5);
 
@@ -135,8 +142,7 @@ public class ArchMirror extends AbstractMirror {
                 return;
             }
 
-            PackageVerifier verifier = new PackageVerifier(logger, name);
-            List<Path> bad = verifier.verify(packages, List.of("zstd", "-t"), 60);
+            List<Path> bad = verifyWithCheckers(packages);
 
             if (bad.isEmpty()) {
                 logger.info("[" + name + "] all packages are healthy");
@@ -166,8 +172,7 @@ public class ArchMirror extends AbstractMirror {
                 .filter(p -> p.toString().endsWith(".pkg.tar.zst"))
                 .collect(Collectors.toList());
 
-            PackageVerifier verifier = new PackageVerifier(logger, name);
-            List<Path> bad = verifier.verify(packages, List.of("zstd", "-t"), 60);
+            List<Path> bad = verifyWithCheckers(packages);
 
             if (bad.isEmpty()) {
                 logger.info("[" + name + "] all packages are healthy, nothing to fix");
@@ -182,15 +187,7 @@ public class ArchMirror extends AbstractMirror {
             }
 
             logger.info("[" + name + "] re-downloading missing packages...");
-            List<String> cmd = new ArrayList<>(List.of(
-                "rsync", "--contimeout=60", "--timeout=300",
-                "-rtlvHv", "--safe-links", "--delete-after",
-                "--delay-updates", "--no-motd", "--partial",
-                "--info=progress2"
-            ));
-            cmd.addAll(buildFilterArgs());
-            cmd.add(sourceUrl);
-            cmd.add(targetDir.toString());
+            List<String> cmd = syncStrategy.buildSyncCommand(sourceUrl, targetDir);
             ProcessResult result = runProcess(cmd, 120);
             if (result.exitCode() == 0) {
                 logger.info("[" + name + "] fix done");
@@ -243,44 +240,18 @@ public class ArchMirror extends AbstractMirror {
         return content;
     }
 
-    private String fetchLastUpdate() throws IOException, InterruptedException {
-        Files.createDirectories(cacheDir);
-        Path tmp = cacheDir.resolve("lastupdate.tmp");
-        ProcessResult r = runProcess(List.of(
-            "rsync", "--contimeout=60", "--timeout=120",
-            sourceUrl + "lastupdate", tmp.toString()
-        ), 5);
-        if (r.exitCode() != 0) {
-            Files.deleteIfExists(tmp);
-            return null;
-        }
-        String content = Files.readString(tmp).trim();
-        Files.deleteIfExists(tmp);
-        return content;
-    }
-
     private boolean isUpToDate() throws IOException, InterruptedException {
-        String remote = fetchLastUpdate();
+        String remote = fetchLastUpdateQuiet();
         if (remote == null || remote.isBlank()) return false;
-        Path lastUpdateFile = cacheDir.resolve("lastupdate");
-        if (!Files.exists(lastUpdateFile)) {
-            lastUpdateFile = targetDir.resolve("lastupdate");
-        }
+        Path lastUpdateFile = getLastSyncFile();
         String local = Files.exists(lastUpdateFile) ? Files.readString(lastUpdateFile).trim() : "";
         return remote.equals(local);
     }
 
     private int countChangedPackages() throws IOException, InterruptedException {
-        List<String> cmd = new ArrayList<>(List.of(
-            "rsync", "--contimeout=60", "--timeout=120",
-            "-rtlvHv", "--safe-links", "--delete-after",
-            "--delay-updates", "--no-motd"
-        ));
-        cmd.addAll(buildFilterArgs());
+        List<String> cmd = new ArrayList<>(syncStrategy.buildCheckCommand(sourceUrl, targetDir));
         cmd.addAll(List.of(
-            "--include=*/", "--include=*.pkg.tar.zst", "--exclude=*",
-            "-n", "--stats",
-            sourceUrl, targetDir.toString()
+            "--include=*/", "--include=*.pkg.tar.zst", "--exclude=*"
         ));
         ProcessResult r = runProcess(cmd, 30);
         for (String line : r.output()) {
@@ -306,38 +277,12 @@ public class ArchMirror extends AbstractMirror {
             .filter(Files::exists)
             .toList();
 
-        PackageVerifier verifier = new PackageVerifier(logger, name);
-        List<Path> bad = verifier.verify(paths, List.of("zstd", "-t"), 60);
+        List<Path> bad = verifyWithCheckers(paths);
         for (Path p : bad) {
             logger.warn("[" + name + "] CORRUPT: " + p);
             Files.deleteIfExists(p);
             Files.deleteIfExists(Path.of(p.toString() + ".sig"));
         }
-    }
-
-    private List<String> buildFilterArgs() {
-        List<String> args = new ArrayList<>();
-        if (!repos.isEmpty()) {
-            // whitelist mode: sync only specified repos + pool + metadata
-            args.add("--include=/pool/");
-            args.add("--include=/pool/**");
-            for (String repo : repos) {
-                String r = repo.endsWith("/") ? repo : repo + "/";
-                args.add("--include=/" + r);
-                args.add("--include=/" + r + "**");
-            }
-            args.add("--include=/lastupdate");
-            args.add("--include=/lastsync");
-            args.add("--exclude=*");
-        } else {
-            // blacklist mode (default)
-            args.add("--exclude=iso/");
-            for (String ex : excludes) {
-                String e = ex.endsWith("/") ? ex : ex + "/";
-                args.add("--exclude=" + e);
-            }
-        }
-        return args;
     }
 
     private void logPackageWord(int count) {

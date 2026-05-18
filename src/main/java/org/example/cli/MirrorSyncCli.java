@@ -1,8 +1,10 @@
-package org.example;
+package org.example.cli;
 
-import org.example.mirrors.IMirror;
-import org.example.mirrors.MirrorFactory;
-import org.example.mirrors.MirrorStatus;
+import org.example.config.ConfigManager;
+import org.example.logging.LogManager;
+import org.example.mirror.api.IMirror;
+import org.example.mirror.core.MirrorFactory;
+import org.example.mirror.api.MirrorStatus;
 import picocli.CommandLine;
 
 import java.time.ZoneId;

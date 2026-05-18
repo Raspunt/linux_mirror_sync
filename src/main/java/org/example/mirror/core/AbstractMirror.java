@@ -1,6 +1,8 @@
-package org.example.mirrors;
+package org.example.mirror.core;
 
-import org.example.LogManager;
+import org.example.mirror.api.*;
+
+import org.example.logging.LogManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -16,29 +18,22 @@ public abstract class AbstractMirror implements IMirror {
     protected final String name;
     protected final Path targetDir;
     protected final LogManager logger;
+    protected final SyncStrategy syncStrategy;
+    protected final List<IntegrityChecker> integrityCheckers;
 
-    protected AbstractMirror(String name, Path targetDir, LogManager logger) {
+    protected AbstractMirror(String name, Path targetDir, LogManager logger,
+                             SyncStrategy syncStrategy, List<IntegrityChecker> integrityCheckers) {
         this.name = name;
         this.targetDir = targetDir;
         this.logger = logger;
+        this.syncStrategy = syncStrategy;
+        this.integrityCheckers = integrityCheckers != null ? integrityCheckers : List.of();
     }
 
     @Override
     public String getName() {
         return name;
     }
-
-    @Override
-    public abstract void syncRepo();
-
-    @Override
-    public abstract void verifyRepo();
-
-    @Override
-    public abstract void checkRepo();
-
-    @Override
-    public abstract void fixRepo();
 
     @Override
     public void checkDependencies() {
@@ -113,6 +108,17 @@ public abstract class AbstractMirror implements IMirror {
         return -1;
     }
 
+    protected Instant getLastSyncTime(Path file) {
+        try {
+            if (Files.exists(file)) {
+                return Files.getLastModifiedTime(file).toInstant();
+            }
+        } catch (IOException e) {
+            logger.warn("[" + name + "] Failed to get last sync time: " + e.getMessage());
+        }
+        return null;
+    }
+
     public final MirrorStatus getStatus() {
         long size = getDirSize(targetDir);
         Instant lastSync = getLastSyncTime(getLastSyncFile());
@@ -125,15 +131,14 @@ public abstract class AbstractMirror implements IMirror {
     protected abstract String checkUpToDateStatus();
     protected abstract String getReposDisplay();
 
-    protected Instant getLastSyncTime(Path file) {
-        try {
-            if (Files.exists(file)) {
-                return Files.getLastModifiedTime(file).toInstant();
+    protected List<Path> verifyWithCheckers(List<Path> files) {
+        for (IntegrityChecker checker : integrityCheckers) {
+            if (checker.isAvailable()) {
+                return checker.verify(files);
             }
-        } catch (IOException e) {
-            logger.warn("[" + name + "] Failed to get last sync time: " + e.getMessage());
         }
-        return null;
+        logger.warn("[" + name + "] No integrity checker available");
+        return List.of();
     }
 
     protected record ProcessResult(int exitCode, List<String> output) {}

@@ -1,6 +1,8 @@
-package org.example.mirrors;
+package org.example.mirror.checkers;
 
-import org.example.LogManager;
+import org.example.mirror.api.*;
+
+import org.example.logging.LogManager;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,16 +13,36 @@ import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class PackageVerifier {
+public class ExternalToolChecker implements IntegrityChecker {
+    private final List<String> checkCommand;
+    private final int timeoutSeconds;
     private final LogManager logger;
     private final String mirrorName;
 
-    public PackageVerifier(LogManager logger, String mirrorName) {
+    public ExternalToolChecker(List<String> checkCommand, int timeoutSeconds, LogManager logger, String mirrorName) {
+        this.checkCommand = checkCommand;
+        this.timeoutSeconds = timeoutSeconds;
         this.logger = logger;
         this.mirrorName = mirrorName;
     }
 
-    public List<Path> verify(List<Path> files, List<String> checkCommand, int timeoutSeconds) {
+    @Override
+    public boolean isAvailable() {
+        if (checkCommand.isEmpty()) return false;
+        String tool = checkCommand.get(0);
+        try {
+            ProcessBuilder pb = new ProcessBuilder("sh", "-c", "command -v " + tool);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            boolean finished = p.waitFor(5, TimeUnit.SECONDS);
+            return finished && p.exitValue() == 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    @Override
+    public List<Path> verify(List<Path> files) {
         if (files.isEmpty()) return List.of();
 
         int total = files.size();
@@ -44,7 +66,6 @@ public class PackageVerifier {
                     }
                     int exitCode = process.exitValue();
 
-                    // consume output to prevent deadlock
                     try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                         while (reader.readLine() != null) {}
                     }
@@ -61,7 +82,6 @@ public class PackageVerifier {
             }));
         }
 
-        // progress reporter
         ScheduledExecutorService progressExecutor = Executors.newSingleThreadScheduledExecutor();
         progressExecutor.scheduleAtFixedRate(() -> {
             int d = done.get();
@@ -80,13 +100,13 @@ public class PackageVerifier {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (ExecutionException e) {
-                // ignore, file already counted as bad
+                // ignore
             }
         }
 
         progressExecutor.shutdownNow();
         executor.shutdown();
-        System.out.println(); // newline after progress
+        System.out.println();
 
         return bad;
     }

@@ -1,6 +1,11 @@
-package org.example.mirrors;
+package org.example.mirror.distros;
 
-import org.example.LogManager;
+import org.example.mirror.api.*;
+import org.example.mirror.core.*;
+import org.example.mirror.strategies.*;
+import org.example.mirror.checkers.*;
+
+import org.example.logging.LogManager;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,7 +26,9 @@ public class DebianMirror extends AbstractMirror {
 
     public DebianMirror(String sourceHost, String sourceRoot, String dist, String arch, String section,
                         Path targetDir, LogManager logger, List<String> repos) {
-        super("debian", targetDir, logger);
+        super("debian", targetDir, logger,
+              buildSyncStrategy(sourceHost, sourceRoot, dist, arch, section),
+              buildCheckers(logger));
         this.sourceHost = sourceHost;
         this.sourceRoot = sourceRoot.startsWith("/") ? sourceRoot : "/" + sourceRoot;
         this.dist = dist;
@@ -30,14 +37,41 @@ public class DebianMirror extends AbstractMirror {
         this.repos = repos != null ? repos : List.of();
     }
 
+    private static SyncStrategy buildSyncStrategy(String host, String root, String dist, String arch, String section) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("sh", "-c", "command -v debmirror");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            boolean finished = p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+            if (finished && p.exitValue() == 0) {
+                return new DebmirrorStrategy(host, root, dist, arch, section);
+            }
+        } catch (Exception e) {
+            // debmirror not available
+        }
+        return new RsyncStrategy();
+    }
+
+    private static List<IntegrityChecker> buildCheckers(LogManager logger) {
+        List<IntegrityChecker> checkers = new ArrayList<>();
+        var dpkgChecker = new ExternalToolChecker(List.of("dpkg-deb", "-I"), 60, logger, "debian");
+        if (dpkgChecker.isAvailable()) {
+            checkers.add(dpkgChecker);
+        }
+        var arTarChecker = new ArTarChecker(60);
+        if (arTarChecker.isAvailable()) {
+            checkers.add(arTarChecker);
+        }
+        return checkers;
+    }
+
     @Override
     public void checkDependencies() {
         try {
-            ProcessResult r = runProcess(List.of("sh", "-c", "command -v debmirror && command -v dpkg-deb"), 1);
+            ProcessResult r = runProcess(List.of("sh", "-c", "command -v rsync && command -v dpkg-deb || command -v ar"), 1);
             if (r.exitCode() != 0) {
-                logger.error("[" + name + "] error: debmirror and/or dpkg-deb are not installed.");
-                logger.error("[" + name + "] Install: yay -S debmirror; sudo pacman -S dpkg");
-                throw new RuntimeException("Missing dependencies: debmirror and/or dpkg-deb");
+                logger.error("[" + name + "] error: debmirror/dpkg-deb/ar are not installed.");
+                throw new RuntimeException("Missing dependencies");
             }
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("Failed to check dependencies", e);
@@ -47,10 +81,9 @@ public class DebianMirror extends AbstractMirror {
     @Override
     public void syncRepo() {
         logger.info("[" + name + "] syncing Debian " + dist + "...");
-        checkDependencies();
         try {
             ensureTargetDir();
-            List<String> cmd = buildDebmirrorCommand(false);
+            List<String> cmd = syncStrategy.buildSyncCommand(null, targetDir);
             ProcessResult result = runProcess(cmd, 180);
             if (result.exitCode() == 0) {
                 logger.info("[" + name + "] done");
@@ -66,9 +99,8 @@ public class DebianMirror extends AbstractMirror {
     @Override
     public void checkRepo() {
         logger.info("[" + name + "] checking Debian " + dist + " for updates...");
-        checkDependencies();
         try {
-            List<String> cmd = buildDebmirrorCommand(true);
+            List<String> cmd = syncStrategy.buildCheckCommand(null, targetDir);
             ProcessResult result = runProcess(cmd, 60);
             if (result.exitCode() == 0) {
                 logger.info("[" + name + "] Check completed");
@@ -98,8 +130,7 @@ public class DebianMirror extends AbstractMirror {
                 return;
             }
 
-            PackageVerifier verifier = new PackageVerifier(logger, name);
-            List<Path> bad = verifier.verify(packages, List.of("dpkg-deb", "-I"), 60);
+            List<Path> bad = verifyWithCheckers(packages);
 
             if (bad.isEmpty()) {
                 logger.info("[" + name + "] all .deb files are healthy");
@@ -129,8 +160,7 @@ public class DebianMirror extends AbstractMirror {
                 .filter(p -> p.toString().endsWith(".deb"))
                 .collect(Collectors.toList());
 
-            PackageVerifier verifier = new PackageVerifier(logger, name);
-            List<Path> bad = verifier.verify(packages, List.of("dpkg-deb", "-I"), 60);
+            List<Path> bad = verifyWithCheckers(packages);
 
             if (bad.isEmpty()) {
                 logger.info("[" + name + "] all .deb files are healthy, nothing to fix");
@@ -170,28 +200,6 @@ public class DebianMirror extends AbstractMirror {
     @Override
     protected String getReposDisplay() {
         return repos.isEmpty() ? section : String.join(", ", repos);
-    }
-
-    private List<String> buildDebmirrorCommand(boolean dryRun) {
-        String effectiveSection = repos.isEmpty() ? section : String.join(",", repos);
-        List<String> cmd = new ArrayList<>(List.of(
-            "debmirror",
-            "--host=" + sourceHost,
-            "--root=" + sourceRoot,
-            "--method=rsync",
-            "--dist=" + dist,
-            "--arch=" + arch,
-            "--section=" + effectiveSection,
-            "--getcontents",
-            "--nosource",
-            "--progress",
-            "--ignore-release-gpg",
-            targetDir.toString()
-        ));
-        if (dryRun) {
-            cmd.add("--dry-run");
-        }
-        return cmd;
     }
 
     private void logPackageWord(int count) {

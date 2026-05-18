@@ -1,5 +1,6 @@
 package org.example;
 
+import org.example.cli.MirrorSyncCli;
 import picocli.CommandLine;
 
 public class Main {

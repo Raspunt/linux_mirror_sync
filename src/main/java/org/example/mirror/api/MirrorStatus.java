@@ -1,4 +1,4 @@
-package org.example.mirrors;
+package org.example.mirror.api;
 
 import java.time.Instant;
 

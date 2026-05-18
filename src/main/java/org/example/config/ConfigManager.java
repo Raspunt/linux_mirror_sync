@@ -1,4 +1,4 @@
-package org.example;
+package org.example.config;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 
 public class ConfigManager {
     private static final String CONFIG_DIR = "~/.config/lms";
@@ -100,10 +101,6 @@ public class ConfigManager {
         if (dc == null) {
             throw new IllegalArgumentException("Unknown distro in config: " + distro);
         }
-        // if explicit rsyncUrl set, use it
-        if (dc.getRsyncUrl() != null && !dc.getRsyncUrl().isBlank()) {
-            return dc.getRsyncUrl();
-        }
         String path = dc.getSourcePath();
         return getBaseUrl() + (path.endsWith("/") ? path : path + "/");
     }
@@ -121,60 +118,46 @@ public class ConfigManager {
         return dc;
     }
 
-    public String getDebianHost() {
-        AppConfig.DistroConfig dc = getDistroConfig("debian");
-        if (dc.getSourceHost() != null && !dc.getSourceHost().isBlank()) {
-            return dc.getSourceHost();
+    public String getDistroFamily(String distro) {
+        AppConfig.DistroConfig dc = getDistroConfig(distro);
+        String family = dc.getFamily();
+        if (family != null && !family.isBlank()) {
+            return family;
         }
-        return "mirror.yandex.ru";
+        // Fallback for legacy configs without family field
+        return switch (distro) {
+            case "arch", "archlinux", "manjaro" -> "arch";
+            case "debian", "ubuntu", "mint" -> "debian";
+            default -> distro;
+        };
     }
 
-    public String getDebianRoot() {
-        AppConfig.DistroConfig dc = getDistroConfig("debian");
-        if (dc.getSourceRoot() != null && !dc.getSourceRoot().isBlank()) {
-            return dc.getSourceRoot();
+    public List<String> getDistroRepos(String distro) {
+        AppConfig.DistroConfig dc = getDistroConfig(distro);
+        if (dc.getRepos() == null) {
+            return List.of();
         }
-        return "/debian";
-    }
-
-    public String getDebianDist() {
-        AppConfig.DistroConfig dc = getDistroConfig("debian");
-        if (dc.getDist() != null && !dc.getDist().isBlank()) {
-            return dc.getDist();
-        }
-        return "trixie";
-    }
-
-    public String getDebianArch() {
-        AppConfig.DistroConfig dc = getDistroConfig("debian");
-        if (dc.getArch() != null && !dc.getArch().isBlank()) {
-            return dc.getArch();
-        }
-        return "amd64";
-    }
-
-    public String getDebianSection() {
-        AppConfig.DistroConfig dc = getDistroConfig("debian");
-        if (dc.getSection() != null && !dc.getSection().isBlank()) {
-            return dc.getSection();
-        }
-        return "main,contrib,non-free,non-free-firmware";
+        return dc.getRepos();
     }
 
     public List<String> getDistroExcludes(String distro) {
-        AppConfig.DistroConfig dc = config.getDistros().get(distro);
-        if (dc == null || dc.getExcludes() == null) {
+        AppConfig.DistroConfig dc = getDistroConfig(distro);
+        if (dc.getExcludes() == null) {
             return List.of();
         }
         return dc.getExcludes();
     }
 
-    public List<String> getDistroRepos(String distro) {
-        AppConfig.DistroConfig dc = config.getDistros().get(distro);
-        if (dc == null || dc.getRepos() == null) {
-            return List.of();
+    public Map<String, String> getDistroProperties(String distro) {
+        AppConfig.DistroConfig dc = getDistroConfig(distro);
+        if (dc.getProperties() == null) {
+            return Map.of();
         }
-        return dc.getRepos();
+        return dc.getProperties();
+    }
+
+    public String getDistroProperty(String distro, String key, String defaultValue) {
+        return getDistroProperties(distro).getOrDefault(key, defaultValue);
     }
 
     public AppConfig getRawConfig() {
