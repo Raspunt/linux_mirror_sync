@@ -3,6 +3,7 @@ package org.example.mirror.core;
 import org.example.mirror.api.*;
 import org.example.mirror.distros.ArchMirrorProvider;
 import org.example.mirror.distros.DebianMirrorProvider;
+import org.example.mirror.distros.FedoraMirrorProvider;
 
 import org.example.config.ConfigManager;
 import org.example.logging.LogManager;
@@ -25,6 +26,7 @@ public class MirrorFactory {
     private void registerDefaults() {
         providers.add(new ArchMirrorProvider());
         providers.add(new DebianMirrorProvider());
+        providers.add(new FedoraMirrorProvider());
     }
 
     public void register(MirrorProvider provider) {
@@ -69,6 +71,6 @@ public class MirrorFactory {
     }
 
     public static List<String> availableDistros() {
-        return List.of("arch", "debian");
+        return List.of("arch", "debian", "fedora");
     }
 }

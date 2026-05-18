@@ -7,10 +7,11 @@ public class AppConfig {
     private String baseUrl = "rsync://mirror.yandex.ru/";
     private String targetDir = "~/mirrors";
     private String logDir = "~/.cache/linux_mirror_sync";
-    private Map<String, DistroConfig> distros = Map.of(
+    private Map<String, DistroConfig> distros = new java.util.HashMap<>(Map.of(
             "arch", new DistroConfig("archlinux/", "arch", true),
-            "debian", new DistroConfig("debian/", "debian", true)
-    );
+            "debian", new DistroConfig("debian/", "debian", true),
+            "fedora", new DistroConfig("fedora/linux/releases/44/Everything/x86_64/os/", "fedora", true)
+    ));
 
     public String getBaseUrl() { return baseUrl; }
     public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }

@@ -68,10 +68,9 @@ public class DebianMirror extends AbstractMirror {
     @Override
     public void checkDependencies() {
         try {
-            ProcessResult r = runProcess(List.of("sh", "-c", "command -v rsync && command -v dpkg-deb || command -v ar"), 1);
+            ProcessResult r = runProcess(List.of("sh", "-c", "command -v rsync"), 1);
             if (r.exitCode() != 0) {
-                logger.error("[" + name + "] error: debmirror/dpkg-deb/ar are not installed.");
-                throw new RuntimeException("Missing dependencies");
+                throw new RuntimeException("Missing dependency: rsync is not installed");
             }
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("Failed to check dependencies", e);
@@ -130,6 +129,11 @@ public class DebianMirror extends AbstractMirror {
                 return;
             }
 
+            if (integrityCheckers.isEmpty()) {
+                logger.info("[" + name + "] dpkg-deb/ar not available, skipping integrity check for " + packages.size() + " package(s)");
+                return;
+            }
+
             List<Path> bad = verifyWithCheckers(packages);
 
             if (bad.isEmpty()) {
@@ -139,7 +143,7 @@ public class DebianMirror extends AbstractMirror {
                 for (Path p : bad) {
                     logger.warn("  CORRUPT: " + p);
                 }
-                logger.warn("[" + name + "] run 'lms fix -d debian' to remove and re-download them");
+                logger.warn("[" + name + "] run 'lms fix debian' to remove and re-download them");
                 logPackageWord(bad.size());
             }
         } catch (IOException e) {
@@ -159,6 +163,12 @@ public class DebianMirror extends AbstractMirror {
             List<Path> packages = Files.walk(pool)
                 .filter(p -> p.toString().endsWith(".deb"))
                 .collect(Collectors.toList());
+
+            if (integrityCheckers.isEmpty()) {
+                logger.info("[" + name + "] dpkg-deb/ar not available, cannot verify packages; running sync to ensure consistency");
+                syncRepo();
+                return;
+            }
 
             List<Path> bad = verifyWithCheckers(packages);
 

@@ -47,9 +47,9 @@ public class ArchMirror extends AbstractMirror {
     @Override
     public void checkDependencies() {
         try {
-            ProcessResult r = runProcess(List.of("sh", "-c", "command -v rsync && command -v zstd"), 1);
+            ProcessResult r = runProcess(List.of("sh", "-c", "command -v rsync"), 1);
             if (r.exitCode() != 0) {
-                throw new RuntimeException("Missing dependencies: rsync and/or zstd are not installed");
+                throw new RuntimeException("Missing dependency: rsync is not installed");
             }
         } catch (IOException | InterruptedException e) {
             throw new RuntimeException("Failed to check dependencies", e);
@@ -142,6 +142,11 @@ public class ArchMirror extends AbstractMirror {
                 return;
             }
 
+            if (integrityCheckers.isEmpty()) {
+                logger.info("[" + name + "] zstd not available, skipping integrity check for " + packages.size() + " package(s)");
+                return;
+            }
+
             List<Path> bad = verifyWithCheckers(packages);
 
             if (bad.isEmpty()) {
@@ -151,7 +156,7 @@ public class ArchMirror extends AbstractMirror {
                 for (Path p : bad) {
                     logger.warn("  CORRUPT: " + p);
                 }
-                logger.warn("[" + name + "] run 'lms fix -d arch' to remove and re-download them");
+                logger.warn("[" + name + "] run 'lms fix arch' to remove and re-download them");
                 logPackageWord(bad.size());
             }
         } catch (IOException e) {
@@ -171,6 +176,13 @@ public class ArchMirror extends AbstractMirror {
             List<Path> packages = Files.walk(pool)
                 .filter(p -> p.toString().endsWith(".pkg.tar.zst"))
                 .collect(Collectors.toList());
+
+            if (integrityCheckers.isEmpty()) {
+                logger.info("[" + name + "] zstd not available, cannot verify packages; running sync to ensure consistency");
+                List<String> cmd = syncStrategy.buildSyncCommand(sourceUrl, targetDir);
+                runProcess(cmd, 120);
+                return;
+            }
 
             List<Path> bad = verifyWithCheckers(packages);
 
