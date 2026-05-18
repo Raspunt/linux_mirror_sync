@@ -21,12 +21,16 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
-      - name: Install dependencies
-        run: |
-          sudo add-apt-repository multiverse -y || true
-          sudo apt-get update
-          sudo apt-get install -y maven zip
-          sudo apt-get install -y rar || echo "rar not available, will skip .rar"
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Build and test
+        run: mvn -B verify
 
       - name: Build distribution
         run: make dist
@@ -38,12 +42,7 @@ jobs:
         run: |
           tar czf jazzysync-linux-x64.tar.gz -C dist .
           (cd dist && zip -r ../jazzysync-linux-x64.zip .)
-          if command -v rar &> /dev/null; then
-            rar a jazzysync-linux-x64.rar dist/*
-          else
-            echo "Skipping .rar (rar not installed)"
-          fi
-          ls -lah *.tar.gz *.zip *.rar 2>/dev/null || true
+          ls -lah *.tar.gz *.zip || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -51,5 +50,4 @@ jobs:
           files: |
             jazzysync-linux-x64.tar.gz
             jazzysync-linux-x64.zip
-            jazzysync-linux-x64.rar
           generate_release_notes: true
