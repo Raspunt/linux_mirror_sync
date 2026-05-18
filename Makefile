@@ -1,8 +1,8 @@
-# Makefile для linux_mirror_sync (Maven + Java 21)
+# Makefile для JazzySync (Maven + Java 21)
 
 MVN    := mvn
-JAR    := target/lms-1.0-SNAPSHOT.jar
-MAIN   := org.example.Main
+JAR    := target/jazzysync-1.0-SNAPSHOT.jar
+MAIN   := io.github.jazzysync.Main
 
 .PHONY: all build test run clean package install compile verify help list sync check dist
 
@@ -12,7 +12,7 @@ all: package
 JAVA_HOME ?= /usr/lib/jvm/java-21-openjdk
 JLINK     ?= $(JAVA_HOME)/bin/jlink
 JDEPS     ?= $(JAVA_HOME)/bin/jdeps
-DIST_JAR  := dist/lms.jar
+DIST_JAR  := dist/jazzy.jar
 DIST_JRE  := dist/jre/bin/java
 
 ## Компиляция
@@ -55,14 +55,14 @@ dist: package
 	   --compress=zip-9 \
 	   --output dist/jre
 	@cp $(JAR) $(DIST_JAR)
-	@echo '#!/bin/bash' > dist/lms
-	@echo 'SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"' >> dist/lms
-	@echo 'exec "$$SCRIPT_DIR/jre/bin/java" -jar "$$SCRIPT_DIR/lms.jar" "$$@"' >> dist/lms
-	@chmod +x dist/lms
+	@echo '#!/bin/bash' > dist/jazzy
+	@echo 'SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"' >> dist/jazzy
+	@echo 'exec "$$SCRIPT_DIR/jre/bin/java" -jar "$$SCRIPT_DIR/jazzy.jar" "$$@"' >> dist/jazzy
+	@chmod +x dist/jazzy
 	@echo "=== Distribution ready in dist/ ==="
 	@echo "  JRE size: $$(du -sh dist/jre | cut -f1)"
 	@echo "  JAR size: $$(du -sh $(DIST_JAR) | cut -f1)"
-	@echo "  Run: ./dist/lms <command>"
+	@echo "  Run: ./dist/jazzy <command>"
 
 ## Список доступных дистрибутивов
 list: package

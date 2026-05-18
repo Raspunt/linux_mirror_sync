@@ -1,0 +1,18 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+JAR="$SCRIPT_DIR/dist/jazzy.jar"
+BUNDLED_JAVA="$SCRIPT_DIR/dist/jre/bin/java"
+
+if [[ -f "$BUNDLED_JAVA" ]]; then
+    exec "$BUNDLED_JAVA" -jar "$JAR" "$@"
+fi
+
+JAR="$SCRIPT_DIR/target/jazzysync-1.0-SNAPSHOT.jar"
+if [[ ! -f "$JAR" ]]; then
+    echo "Error: jazzy.jar not found. Run 'make dist' or 'mvn package' first." >&2
+    exit 1
+fi
+
+exec java -jar "$JAR" "$@"

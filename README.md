@@ -1,6 +1,6 @@
-# lms — Linux Mirror Sync
+# JazzySync — Linux Mirror Sync
 
-A CLI tool for managing local Linux distribution mirrors. Supports **Arch Linux** (via `rsync`) and **Debian** (via `debmirror`) with intelligent sync, integrity verification, and repair.
+A CLI tool (`jazzy`) for managing local Linux distribution mirrors. Supports **Arch Linux**, **Debian**, and **Fedora** with intelligent sync, integrity verification, and repair.
 
 ---
 
@@ -21,18 +21,18 @@ A CLI tool for managing local Linux distribution mirrors. Supports **Arch Linux*
 
 | Mirror | Required tools |
 |--------|---------------|
-| **Arch Linux** | `rsync`, `zstd` |
-| **Debian** | `rsync`, `debmirror`, `dpkg-deb` |
+| **Arch Linux** | `rsync` (zstd optional for verify) |
+| **Debian** | `rsync` (dpkg-deb/ar optional for verify) |
+| **Fedora** | `rsync` (rpm optional for verify) |
 
 Install on Arch-based systems:
 ```bash
-sudo pacman -S rsync zstd dpkg
-yay -S debmirror        # or paru -S debmirror
+sudo pacman -S rsync
 ```
 
 Install on Debian-based systems:
 ```bash
-sudo apt install rsync zstd debmirror dpkg
+sudo apt install rsync
 ```
 
 ### Build dependencies (only if building from source)
@@ -48,9 +48,9 @@ sudo apt install rsync zstd debmirror dpkg
 
 ```bash
 git clone <repository-url>
-cd linux_mirror_sync
+cd JazzySync
 make dist
-./dist/lms list
+./dist/jazzy list
 ```
 
 The `make dist` command:
@@ -61,12 +61,12 @@ The `make dist` command:
 
 ### Option 2: Download pre-built release
 
-Download `lms-linux-x64.tar.gz` from the [Releases](https://github.com/.../releases) page:
+Download `jazzysync-linux-x64.tar.gz` from the [Releases](https://github.com/.../releases) page:
 
 ```bash
-tar xzf lms-linux-x64.tar.gz
-cd lms
-./lms sync
+tar xzf jazzysync-linux-x64.tar.gz
+cd jazzysync
+./jazzy sync
 ```
 
 > **Note:** The bundled JRE is built for **x86_64 (amd64)** Linux. For ARM or other architectures you must build from source on the target machine.
@@ -75,7 +75,7 @@ cd lms
 
 ## Configuration
 
-Configuration file: `~/.config/lms/config.json`
+Configuration file: `~/.config/jazzy/config.json`
 
 Created automatically with sensible defaults on the first run.
 
@@ -85,7 +85,7 @@ Created automatically with sensible defaults on the first run.
 {
   "baseUrl": "rsync://mirror.yandex.ru/",
   "targetDir": "/mnt/big/mirrors/",
-  "logDir": "~/.cache/linux_mirror_sync",
+  "logDir": "~/.cache/jazzy",
   "distros": {
     "arch": {
       "sourcePath": "archlinux/",
@@ -111,7 +111,7 @@ Created automatically with sensible defaults on the first run.
 |-------|-------------|---------|
 | `baseUrl` | Base rsync URL for all mirrors | `rsync://mirror.yandex.ru/` |
 | `targetDir` | Local root directory for mirrors | `~/mirrors` |
-| `logDir` | Directory for log files | `~/.cache/linux_mirror_sync` |
+| `logDir` | Directory for log files | `~/.cache/jazzy` |
 
 #### Per-distribution settings (`distros.<name>`)
 
@@ -158,11 +158,11 @@ This overrides the `section` field passed to `debmirror`.
 ## CLI Usage
 
 ```
-Usage: lms [-hV] [-t=<targetDir>] <COMMAND> [TARGET]
+Usage: jazzy [-hV] [-t=<targetDir>] <COMMAND> [TARGET]
 
 Arguments:
   <COMMAND>  Command to execute: sync, verify, check, fix, status, list
-  [TARGET]   Distribution to process: arch, debian, or all (default: all)
+  [TARGET]   Distribution to process: arch, debian, fedora, or all (default: all)
 
 Options:
   -t, --target-dir=<targetDir>  Override target directory for mirrors
@@ -176,7 +176,7 @@ Options:
 |---------|-------------|-------|
 | `sync` | Synchronize mirror(s) with upstream | ⚠️ Modifies files |
 | `check` | Dry-run; show what would change | ✅ Read-only |
-| `verify` | Verify integrity of local packages | ✅ Read-only |
+| `verify` | Verify integrity of local packages (if tools available) | ✅ Read-only |
 | `fix` | Remove corrupt packages and re-download | ⚠️ Deletes bad files |
 | `status` | Show mirror status, size, last sync | ✅ Read-only |
 | `list` | List configured distributions | ✅ Read-only |
@@ -185,25 +185,25 @@ Options:
 
 ```bash
 # Sync all enabled mirrors
-lms sync
+jazzy sync
 
 # Sync only Arch Linux
-lms sync arch
+jazzy sync arch
 
 # Check all mirrors for updates (dry-run)
-lms check
+jazzy check
 
 # Verify integrity of Debian packages
-lms verify debian
+jazzy verify debian
 
 # Fix corrupt Arch packages
-lms fix arch
+jazzy fix arch
 
 # Show status table
-lms status
+jazzy status
 
 # List distributions
-lms list
+jazzy list
 ```
 
 ---
@@ -227,7 +227,7 @@ lms list
 All operations are logged to both **stdout** and a log file:
 
 ```
-~/.cache/linux_mirror_sync/mirror-sync.log
+~/.cache/jazzy/mirror-sync.log
 ```
 
 Each mirror also maintains its own sync logs in the mirror directory:
@@ -242,8 +242,9 @@ Each mirror also maintains its own sync logs in the mirror directory:
 
 ```
 IMirror (interface)
-├── ArchMirror    → rsync + zstd
-└── DebianMirror  → debmirror + dpkg-deb
+├── ArchMirror    → rsync (zstd optional)
+├── DebianMirror  → rsync (debmirror/dpkg-deb optional)
+└── FedoraMirror  → rsync (rpm optional)
 ```
 
 - **Java acts as an orchestrator** — it launches external tools (`rsync`, `debmirror`, `zstd`, `dpkg-deb`) via `ProcessBuilder`
