@@ -87,22 +87,15 @@ Created automatically with sensible defaults on the first run.
   "targetDir": "/mnt/big/mirrors/",
   "logDir": "~/.cache/jazzy",
   "distros": {
+    "debian": {
+      "sourcePath": "debian/",
+      "enabled": true,
+      "repos": ["main", "contrib", "non-free", "non-free-firmware"]
+    },
     "arch": {
       "sourcePath": "archlinux/",
       "enabled": true,
       "repos": ["core", "extra", "multilib"]
-    },
-    "debian": {
-      "sourcePath": "debian/",
-      "enabled": true,
-      "repos": ["main", "contrib", "non-free", "non-free-firmware"],
-      "properties": {
-        "host": "mirror.ps.kz",
-        "root": "/debian",
-        "dist": "trixie",
-        "arch": "amd64",
-        "section": "main,contrib,non-free,non-free-firmware"
-      }
     },
     "fedora": {
       "sourcePaths": [
