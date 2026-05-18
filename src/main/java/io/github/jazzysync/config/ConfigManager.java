@@ -105,6 +105,22 @@ public class ConfigManager {
         return getBaseUrl() + (path.endsWith("/") ? path : path + "/");
     }
 
+    public List<String> getDistroSourceUrls(String distro) {
+        AppConfig.DistroConfig dc = config.getDistros().get(distro);
+        if (dc == null) {
+            throw new IllegalArgumentException("Unknown distro in config: " + distro);
+        }
+        List<String> paths = dc.getSourcePaths();
+        if (paths != null && !paths.isEmpty()) {
+            String base = getBaseUrl();
+            return paths.stream()
+                .map(p -> base + (p.endsWith("/") ? p : p + "/"))
+                .toList();
+        }
+        String path = dc.getSourcePath();
+        return List.of(getBaseUrl() + (path.endsWith("/") ? path : path + "/"));
+    }
+
     public boolean isDistroEnabled(String distro) {
         AppConfig.DistroConfig dc = config.getDistros().get(distro);
         return dc != null && dc.isEnabled();

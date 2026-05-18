@@ -15,12 +15,14 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class FedoraMirror extends AbstractMirror {
-    private final String sourceUrl;
+    private final List<String> sourceUrls;
     private final List<String> repos;
 
-    public FedoraMirror(String sourceUrl, Path targetDir, LogManager logger, List<String> repos) {
+    public FedoraMirror(List<String> sourceUrls, Path targetDir, LogManager logger, List<String> repos) {
         super("fedora", targetDir, logger, new RsyncStrategy(), buildCheckers(logger));
-        this.sourceUrl = sourceUrl.endsWith("/") ? sourceUrl : sourceUrl + "/";
+        this.sourceUrls = sourceUrls.stream()
+            .map(u -> u.endsWith("/") ? u : u + "/")
+            .toList();
         this.repos = repos != null ? repos : List.of();
     }
 
@@ -47,15 +49,18 @@ public class FedoraMirror extends AbstractMirror {
 
     @Override
     public void syncRepo() {
-        logger.info("[" + name + "] syncing Fedora from " + sourceUrl + " to " + targetDir);
+        logger.info("[" + name + "] syncing Fedora from " + sourceUrls.size() + " source(s) to " + targetDir);
         try {
             ensureTargetDir();
-            List<String> cmd = syncStrategy.buildSyncCommand(sourceUrl, targetDir);
-            ProcessResult result = runProcess(cmd, 180);
-            if (result.exitCode() == 0) {
-                logger.info("[" + name + "] done");
-            } else {
-                logger.error("[" + name + "] Synchronization failed with exit code: " + result.exitCode());
+            for (String url : sourceUrls) {
+                logger.info("[" + name + "] source: " + url);
+                List<String> cmd = syncStrategy.buildSyncCommand(url, targetDir);
+                ProcessResult result = runProcess(cmd, 180);
+                if (result.exitCode() == 0) {
+                    logger.info("[" + name + "] done: " + url);
+                } else {
+                    logger.error("[" + name + "] Synchronization failed for " + url + " with exit code: " + result.exitCode());
+                }
             }
         } catch (IOException | InterruptedException e) {
             logger.error("[" + name + "] Synchronization error: " + e.getMessage());
@@ -67,12 +72,14 @@ public class FedoraMirror extends AbstractMirror {
     public void checkRepo() {
         logger.info("[" + name + "] checking Fedora for updates...");
         try {
-            List<String> cmd = syncStrategy.buildCheckCommand(sourceUrl, targetDir);
-            ProcessResult result = runProcess(cmd, 60);
-            if (result.exitCode() == 0) {
-                logger.info("[" + name + "] Check completed");
-            } else {
-                logger.error("[" + name + "] Check failed with exit code: " + result.exitCode());
+            for (String url : sourceUrls) {
+                List<String> cmd = syncStrategy.buildCheckCommand(url, targetDir);
+                ProcessResult result = runProcess(cmd, 60);
+                if (result.exitCode() == 0) {
+                    logger.info("[" + name + "] Check completed for " + url);
+                } else {
+                    logger.error("[" + name + "] Check failed for " + url + " with exit code: " + result.exitCode());
+                }
             }
         } catch (IOException | InterruptedException e) {
             logger.error("[" + name + "] Check error: " + e.getMessage());
@@ -171,7 +178,7 @@ public class FedoraMirror extends AbstractMirror {
             Path tmpDir = Files.createTempDirectory("fedora-check-");
             try {
                 Path tmpRepomd = tmpDir.resolve("repomd.xml");
-                String remotePath = sourceUrl + "repodata/repomd.xml";
+                String remotePath = sourceUrls.get(0) + "repodata/repomd.xml";
                 // If repomd.xml is nested (e.g. Everything/x86_64/os/repodata/),
                 // sourceUrl already includes that path, so remotePath is correct.
                 ProcessResult r = runProcessQuiet(List.of(

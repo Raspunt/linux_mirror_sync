@@ -14,9 +14,9 @@ public class FedoraMirrorProvider implements MirrorProvider {
 
     @Override
     public IMirror create(String name, ConfigManager config, LogManager logger) {
-        String sourceUrl = config.getDistroSourceUrl(name);
+        var sourceUrls = config.getDistroSourceUrls(name);
         java.nio.file.Path targetDir = config.getDistroTarget(name);
         var repos = config.getDistroRepos(name);
-        return new FedoraMirror(sourceUrl, targetDir, logger, repos);
+        return new FedoraMirror(sourceUrls, targetDir, logger, repos);
     }
 }

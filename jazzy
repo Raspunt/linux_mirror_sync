@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 JAR="$SCRIPT_DIR/dist/jazzy.jar"
 BUNDLED_JAVA="$SCRIPT_DIR/dist/jre/bin/java"
 

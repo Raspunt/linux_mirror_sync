@@ -255,4 +255,7 @@ IMirror (interface)
 
 ## License
 
-MIT
+Licensed under the Apache License, Version 2.0.
+See [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
+
+JazzySync is a trademark of Raspunt.

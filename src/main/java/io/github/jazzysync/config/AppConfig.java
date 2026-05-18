@@ -29,6 +29,7 @@ public class AppConfig {
         private String sourcePath;
         private String family;
         private boolean enabled = true;
+        private List<String> sourcePaths;
         private List<String> repos;
         private List<String> excludes;
         private Map<String, String> properties;
@@ -49,6 +50,9 @@ public class AppConfig {
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+        public List<String> getSourcePaths() { return sourcePaths; }
+        public void setSourcePaths(List<String> sourcePaths) { this.sourcePaths = sourcePaths; }
 
         public List<String> getRepos() { return repos; }
         public void setRepos(List<String> repos) { this.repos = repos; }

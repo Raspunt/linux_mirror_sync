@@ -4,7 +4,7 @@ MVN    := mvn
 JAR    := target/jazzysync-1.0-SNAPSHOT.jar
 MAIN   := io.github.jazzysync.Main
 
-.PHONY: all build test run clean package install compile verify help list sync check dist
+.PHONY: all build test run clean package install maven-install compile verify help list sync check dist
 
 # Цель по умолчанию
 all: package
@@ -31,9 +31,17 @@ test:
 package:
 	$(MVN) -B package
 
-## Установка в локальный репозиторий
-install:
+## Установка в локальный Maven репозиторий
+maven-install:
 	$(MVN) -B install
+
+## Системная установка в /opt/jazzysync
+install: dist
+	@echo "=== Installing JazzySync to /opt/jazzysync ==="
+	sudo rm -rf /opt/jazzysync
+	sudo cp -r dist /opt/jazzysync
+	sudo ln -sf /opt/jazzysync/jazzy /usr/local/bin/jazzy
+	@echo "Installed. Run: jazzy --help"
 
 ## Очистка
  clean:
@@ -56,7 +64,7 @@ dist: package
 	   --output dist/jre
 	@cp $(JAR) $(DIST_JAR)
 	@echo '#!/bin/bash' > dist/jazzy
-	@echo 'SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"' >> dist/jazzy
+	@echo 'SCRIPT_DIR="$$(cd "$$(dirname "$$(readlink -f "$$0")")" && pwd)"' >> dist/jazzy
 	@echo 'exec "$$SCRIPT_DIR/jre/bin/java" -jar "$$SCRIPT_DIR/jazzy.jar" "$$@"' >> dist/jazzy
 	@chmod +x dist/jazzy
 	@echo "=== Distribution ready in dist/ ==="
@@ -88,7 +96,8 @@ help:
 	@echo "  compile   - только компиляция"
 	@echo "  test      - запуск тестов"
 	@echo "  package   - упаковка в fat-jar"
-	@echo "  install   - установка в локальный репозиторий"
+	@echo "  install   - системная установка в /opt/jazzysync"
+	@echo "  maven-install - установка в локальный Maven репозиторий"
 	@echo "  clean     - очистка артефактов"
 	@echo "  verify    - полная проверка (clean + verify)"
 	@echo "  dist      - сборка портативного дистрибутива (JRE + JAR)"
