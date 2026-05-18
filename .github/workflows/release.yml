@@ -23,17 +23,33 @@ jobs:
 
       - name: Install dependencies
         run: |
+          sudo add-apt-repository multiverse -y || true
           sudo apt-get update
-          sudo apt-get install -y maven
+          sudo apt-get install -y maven zip
+          sudo apt-get install -y rar || echo "rar not available, will skip .rar"
 
       - name: Build distribution
         run: make dist
 
-      - name: Package tarball
-        run: tar czf lms-linux-x64.tar.gz -C dist .
+      - name: Debug dist contents
+        run: ls -lah dist/ && du -sh dist/jre || echo "no jre dir"
+
+      - name: Package archives
+        run: |
+          tar czf lms-linux-x64.tar.gz -C dist .
+          (cd dist && zip -r ../lms-linux-x64.zip .)
+          if command -v rar &> /dev/null; then
+            rar a lms-linux-x64.rar dist/*
+          else
+            echo "Skipping .rar (rar not installed)"
+          fi
+          ls -lah *.tar.gz *.zip *.rar 2>/dev/null || true
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: lms-linux-x64.tar.gz
+          files: |
+            lms-linux-x64.tar.gz
+            lms-linux-x64.zip
+            lms-linux-x64.rar
           generate_release_notes: true
