@@ -201,7 +201,9 @@ public class FedoraMirror extends AbstractMirror {
             Path tmpDir = Files.createTempDirectory("fedora-check-");
             try {
                 Path tmpRepomd = tmpDir.resolve("repomd.xml");
-                String remotePath = sourceUrls.get(0) + "repodata/repomd.xml";
+                String repoPath = repos.isEmpty() ? "" : (repos.get(0).endsWith("/") ? repos.get(0) : repos.get(0) + "/");
+            String remotePath = sourceUrls.get(0) + repoPath + "repodata/repomd.xml";
+//            logger.info(remotePath);
                 ProcessResult r = runProcessQuiet(List.of(
                     "rsync", "--contimeout=60", "--timeout=120",
                     remotePath, tmpRepomd.toString()

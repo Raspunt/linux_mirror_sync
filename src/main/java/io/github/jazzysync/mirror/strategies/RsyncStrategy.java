@@ -48,10 +48,21 @@ public class RsyncStrategy implements SyncStrategy {
     }
 
     private void addFilters(List<String> cmd) {
-        // First: include the top-level directories themselves
+        // Build all intermediate directory includes so rsync can descend into nested paths
+        java.util.LinkedHashSet<String> dirIncludes = new java.util.LinkedHashSet<>();
         for (String in : includes) {
-            String i = in.endsWith("/") ? in : in + "/";
-            cmd.add("--include=/" + i);
+            String clean = in.endsWith("/") ? in.substring(0, in.length() - 1) : in;
+            if (clean.isEmpty()) continue;
+            StringBuilder path = new StringBuilder();
+            for (String part : clean.split("/")) {
+                if (path.length() > 0) path.append("/");
+                path.append(part);
+                dirIncludes.add(path.toString() + "/");
+            }
+        }
+        // First: include directories themselves (intermediate + target)
+        for (String dir : dirIncludes) {
+            cmd.add("--include=/" + dir);
         }
         // Second: apply exclusions before recursive includes
         for (String ex : excludes) {
