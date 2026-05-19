@@ -64,7 +64,7 @@ config.json ──► ConfigManager ──► MirrorFactory ──► IMirror
 ### Option 1: Build from source
 
 ```bash
-git clone https://github.com/Raspunt/linux_mirror_sync.git
+git clone https://github.com/Raspunt/JazzySync.git
 cd linux_mirror_sync
 make dist
 ./dist/jazzy list
