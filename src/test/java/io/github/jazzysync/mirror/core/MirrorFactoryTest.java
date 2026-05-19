@@ -18,7 +18,7 @@ class MirrorFactoryTest {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://example.com/");
         cfg.setTargetDir("~/mirrors");
-        cfg.setDistros(new java.util.HashMap<>(java.util.Map.of(
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of(
             "arch", new AppConfig.DistroConfig("archlinux/", "arch", true),
             "fedora", new AppConfig.DistroConfig("fedora/", "fedora", true),
             "fedora-updates", new AppConfig.DistroConfig("updates/", "fedora", true)
@@ -53,7 +53,7 @@ class MirrorFactoryTest {
     void createAll_skipsDisabled() {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://example.com/");
-        cfg.setDistros(new java.util.HashMap<>(java.util.Map.of(
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of(
             "arch", new AppConfig.DistroConfig("archlinux/", "arch", false),
             "fedora", new AppConfig.DistroConfig("fedora/", "fedora", true)
         )));
@@ -70,7 +70,7 @@ class MirrorFactoryTest {
     void create_unknownFamilyThrows() {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://example.com/");
-        cfg.setDistros(new java.util.HashMap<>(java.util.Map.of(
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of(
             "gentoo", new AppConfig.DistroConfig("gentoo/", "gentoo", true)
         )));
         ConfigManager cm = new ConfigManager(cfg);

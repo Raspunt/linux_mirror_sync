@@ -7,7 +7,7 @@ public class AppConfig {
     private String baseUrl = "rsync://mirror.yandex.ru/";
     private String targetDir = "~/mirrors";
     private String logDir = "~/.cache/jazzy";
-    private Map<String, DistroConfig> distros = new java.util.HashMap<>(Map.of(
+    private java.util.LinkedHashMap<String, DistroConfig> distros = new java.util.LinkedHashMap<>(Map.of(
             "arch", new DistroConfig("archlinux/", "arch", true),
             "debian", new DistroConfig("debian/", "debian", true),
             "fedora", new DistroConfig("fedora/linux/releases/44/Everything/x86_64/os/", "fedora", true)
@@ -22,8 +22,8 @@ public class AppConfig {
     public String getLogDir() { return logDir; }
     public void setLogDir(String logDir) { this.logDir = logDir; }
 
-    public Map<String, DistroConfig> getDistros() { return distros; }
-    public void setDistros(Map<String, DistroConfig> distros) { this.distros = distros; }
+    public java.util.LinkedHashMap<String, DistroConfig> getDistros() { return distros; }
+    public void setDistros(java.util.LinkedHashMap<String, DistroConfig> distros) { this.distros = distros; }
 
     public static class DistroConfig {
         private String sourcePath;

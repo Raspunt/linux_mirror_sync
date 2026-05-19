@@ -14,7 +14,7 @@ class ConfigManagerTest {
         cfg.setBaseUrl("rsync://example.com/");
         cfg.setTargetDir("~/mirrors");
         cfg.setLogDir("~/.cache/jazzy");
-        cfg.setDistros(new java.util.HashMap<>(java.util.Map.of(
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of(
             "arch", new AppConfig.DistroConfig("archlinux/", "arch", true),
             "debian", new AppConfig.DistroConfig("debian/", "debian", true),
             "fedora", new AppConfig.DistroConfig("fedora/linux/releases/44/", "fedora", true),
@@ -52,7 +52,7 @@ class ConfigManagerTest {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://example.com/");
         AppConfig.DistroConfig custom = new AppConfig.DistroConfig("custom/", "fedora", true);
-        cfg.setDistros(java.util.Map.of("my-custom", custom));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("my-custom", custom)));
         ConfigManager cm = new ConfigManager(cfg);
         assertEquals("fedora", cm.getDistroFamily("my-custom"));
     }
@@ -71,7 +71,7 @@ class ConfigManagerTest {
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig();
         dc.setSourcePaths(List.of("path/a/", "path/b/"));
         dc.setEnabled(true);
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         List<String> urls = cm.getDistroSourceUrls("fedora");
         assertEquals(List.of("rsync://example.com/path/a/", "rsync://example.com/path/b/"), urls);
@@ -82,7 +82,7 @@ class ConfigManagerTest {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://example.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("fedora/", "fedora", true);
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertTrue(cm.getDistroRepos("fedora").isEmpty());
     }
@@ -93,7 +93,7 @@ class ConfigManagerTest {
         cfg.setBaseUrl("rsync://example.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("fedora/", "fedora", true);
         dc.setRepos(List.of("Everything", "Workstation"));
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertEquals(List.of("Everything", "Workstation"), cm.getDistroRepos("fedora"));
     }
@@ -103,7 +103,7 @@ class ConfigManagerTest {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://example.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("fedora/", "fedora", true);
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertTrue(cm.getDistroExcludes("fedora").isEmpty());
     }
@@ -114,7 +114,7 @@ class ConfigManagerTest {
         cfg.setBaseUrl("rsync://example.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("fedora/", "fedora", true);
         dc.setExcludes(List.of("Everything/aarch64", "Everything/debug"));
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertEquals(List.of("Everything/aarch64", "Everything/debug"), cm.getDistroExcludes("fedora"));
     }
@@ -132,7 +132,7 @@ class ConfigManagerTest {
         AppConfig cfg = new AppConfig();
         cfg.setBaseUrl("rsync://global.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("fedora/", "fedora", true);
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertEquals("rsync://global.com/", cm.getDistroBaseUrl("fedora"));
     }
@@ -143,7 +143,7 @@ class ConfigManagerTest {
         cfg.setBaseUrl("rsync://global.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("fedora/", "fedora", true);
         dc.setBaseUrl("rsync://special.com");
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertEquals("rsync://special.com/", cm.getDistroBaseUrl("fedora"));
     }
@@ -154,7 +154,7 @@ class ConfigManagerTest {
         cfg.setBaseUrl("rsync://global.com/");
         AppConfig.DistroConfig dc = new AppConfig.DistroConfig("path/", "fedora", true);
         dc.setBaseUrl("rsync://special.com/");
-        cfg.setDistros(java.util.Map.of("fedora", dc));
+        cfg.setDistros(new java.util.LinkedHashMap<>(java.util.Map.of("fedora", dc)));
         ConfigManager cm = new ConfigManager(cfg);
         assertEquals("rsync://special.com/path/", cm.getDistroSourceUrl("fedora"));
     }

@@ -1,13 +1,16 @@
 package io.github.jazzysync.config;
 
-import com.moandjiezana.toml.Toml;
-import com.moandjiezana.toml.TomlWriter;
+import org.tomlj.Toml;
+import org.tomlj.TomlArray;
+import org.tomlj.TomlParseResult;
+import org.tomlj.TomlTable;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,8 +46,8 @@ public class ConfigManager {
 
         if (Files.exists(configFile)) {
             try {
-                Toml toml = new Toml().read(configFile.toFile());
-                return toml.to(AppConfig.class);
+                TomlParseResult result = Toml.parse(configFile);
+                return parseConfig(result);
             } catch (Exception e) {
                 System.err.println("Warning: failed to read config, using defaults. " + e.getMessage());
                 return new AppConfig();
@@ -53,13 +56,108 @@ public class ConfigManager {
             AppConfig defaults = new AppConfig();
             try {
                 Files.createDirectories(configDir);
-                new TomlWriter().write(defaults, configFile.toFile());
+                Files.writeString(configFile, toToml(defaults));
                 System.out.println("Created default config: " + configFile);
             } catch (IOException e) {
                 System.err.println("Warning: failed to create default config. " + e.getMessage());
             }
             return defaults;
         }
+    }
+
+    private static AppConfig parseConfig(TomlParseResult toml) {
+        AppConfig config = new AppConfig();
+        config.setBaseUrl(toml.getString("baseUrl", () -> "rsync://mirror.yandex.ru/"));
+        config.setTargetDir(toml.getString("targetDir", () -> "~/mirrors"));
+        config.setLogDir(toml.getString("logDir", () -> "~/.cache/jazzy"));
+
+        TomlTable distrosTable = toml.getTable("distros");
+        if (distrosTable != null) {
+            LinkedHashMap<String, AppConfig.DistroConfig> distros = new LinkedHashMap<>();
+            for (String name : distrosTable.keySet()) {
+                TomlTable t = distrosTable.getTable(name);
+                if (t == null) continue;
+                AppConfig.DistroConfig dc = new AppConfig.DistroConfig();
+                dc.setSourcePath(t.getString("sourcePath"));
+                dc.setFamily(t.getString("family"));
+                dc.setEnabled(t.getBoolean("enabled", () -> true));
+                dc.setBaseUrl(t.getString("baseUrl"));
+                dc.setRepos(getStringList(t, "repos"));
+                dc.setExcludes(getStringList(t, "excludes"));
+                dc.setSourcePaths(getStringList(t, "sourcePaths"));
+                dc.setProperties(getStringMap(t, "properties"));
+                distros.put(name, dc);
+            }
+            config.setDistros(distros);
+        }
+
+        return config;
+    }
+
+    private static List<String> getStringList(TomlTable table, String key) {
+        TomlArray arr = table.getArray(key);
+        if (arr == null) return null;
+        List<String> result = new ArrayList<>();
+        for (int i = 0; i < arr.size(); i++) {
+            result.add(arr.getString(i));
+        }
+        return result;
+    }
+
+    private static Map<String, String> getStringMap(TomlTable table, String key) {
+        TomlTable t = table.getTable(key);
+        if (t == null) return null;
+        Map<String, String> result = new LinkedHashMap<>();
+        for (String k : t.keySet()) {
+            result.put(k, t.getString(k));
+        }
+        return result;
+    }
+
+    private static String toToml(AppConfig config) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("baseUrl = \"").append(escape(config.getBaseUrl())).append("\"\n");
+        sb.append("targetDir = \"").append(escape(config.getTargetDir())).append("\"\n");
+        sb.append("logDir = \"").append(escape(config.getLogDir())).append("\"\n\n");
+        for (Map.Entry<String, AppConfig.DistroConfig> e : config.getDistros().entrySet()) {
+            sb.append("[distros.").append(e.getKey()).append("]\n");
+            AppConfig.DistroConfig dc = e.getValue();
+            if (dc.getSourcePath() != null) {
+                sb.append("sourcePath = \"").append(escape(dc.getSourcePath())).append("\"\n");
+            }
+            if (dc.getFamily() != null) {
+                sb.append("family = \"").append(escape(dc.getFamily())).append("\"\n");
+            }
+            sb.append("enabled = ").append(dc.isEnabled()).append("\n");
+            if (dc.getBaseUrl() != null) {
+                sb.append("baseUrl = \"").append(escape(dc.getBaseUrl())).append("\"\n");
+            }
+            appendStringList(sb, "repos", dc.getRepos());
+            appendStringList(sb, "excludes", dc.getExcludes());
+            appendStringList(sb, "sourcePaths", dc.getSourcePaths());
+            if (dc.getProperties() != null && !dc.getProperties().isEmpty()) {
+                sb.append("[distros.").append(e.getKey()).append(".properties]\n");
+                for (Map.Entry<String, String> pe : dc.getProperties().entrySet()) {
+                    sb.append(pe.getKey()).append(" = \"").append(escape(pe.getValue())).append("\"\n");
+                }
+            }
+            sb.append("\n");
+        }
+        return sb.toString();
+    }
+
+    private static void appendStringList(StringBuilder sb, String key, List<String> list) {
+        if (list == null || list.isEmpty()) return;
+        sb.append(key).append(" = [");
+        for (int i = 0; i < list.size(); i++) {
+            sb.append("\"").append(escape(list.get(i))).append("\"");
+            if (i < list.size() - 1) sb.append(", ");
+        }
+        sb.append("]\n");
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
     }
 
     private static Path expandHome(String path) {
