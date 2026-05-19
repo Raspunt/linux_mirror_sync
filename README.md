@@ -1,6 +1,6 @@
 # JazzySync — Linux Mirror Sync
 
-A CLI tool (`jazzy`) for managing local Linux distribution mirrors through a single JSON configuration. Supports **Arch Linux**, **Debian**, and **Fedora**.
+A CLI tool (`jazzy`) for managing local Linux distribution mirrors through a single TOML configuration. Supports **Arch Linux**, **Debian**, and **Fedora**.
 
 > **What it actually is:** a Java orchestrator that runs `rsync` (and optionally `debmirror`) based on your config. It does **not** generate repository metadata, merge repositories, or fix broken upstream mirrors.
 
@@ -9,7 +9,7 @@ A CLI tool (`jazzy`) for managing local Linux distribution mirrors through a sin
 ## What It Does (and Doesn't)
 
 ### ✅ It does
-- Reads one JSON config and runs the right external tool (`rsync` / `debmirror`) for each distribution
+- Reads one TOML config and runs the right external tool (`rsync` / `debmirror`) for each distribution
 - Filters what to sync: Arch repos, Debian sections, Fedora editions
 - Checks integrity of downloaded packages after sync (`zstd`, `dpkg-deb`, `rpm`)
 - Removes corrupt packages and re-downloads them (`jazzy fix`)
@@ -29,13 +29,13 @@ A CLI tool (`jazzy`) for managing local Linux distribution mirrors through a sin
 ## How It Works
 
 ```
-config.json ──► ConfigManager ──► MirrorFactory ──► IMirror
+config.toml ──► ConfigManager ──► MirrorFactory ──► IMirror
                                                     ├── ArchMirror ──► rsync
                                                     ├── DebianMirror ──► debmirror (or rsync)
                                                     └── FedoraMirror ──► rsync
 ```
 
-1. You write `~/.config/jazzy/config.json`
+1. You write `~/.config/jazzy/config.toml`
 2. `jazzy sync` reads the config and creates a mirror object for each enabled distribution
 3. Each mirror builds the appropriate external command (`rsync ...` or `debmirror ...`)
 4. Output is logged to both stdout and `~/.cache/jazzy/mirror-sync.log`
@@ -65,7 +65,7 @@ config.json ──► ConfigManager ──► MirrorFactory ──► IMirror
 
 ```bash
 git clone https://github.com/Raspunt/JazzySync.git
-cd linux_mirror_sync
+cd JazzySync
 make dist
 ./dist/jazzy list
 ```
@@ -97,7 +97,7 @@ jazzy --help
 
 ## Configuration
 
-Configuration file: `~/.config/jazzy/config.json`
+Configuration file: `~/.config/jazzy/config.toml`
 
 Created automatically with sensible defaults on the first run.
 
@@ -105,43 +105,39 @@ Created automatically with sensible defaults on the first run.
 
 Fedora **releases** and **updates** are **two independent repositories** with separate `repodata/`. You **must** define them as separate entries:
 
-```json
-{
-  "baseUrl": "rsync://mirror.yandex.ru/",
-  "targetDir": "/mnt/big/mirrors/",
-  "logDir": "~/.cache/jazzy",
-  "distros": {
-    "debian": {
-      "sourcePath": "debian/",
-      "enabled": true,
-      "repos": ["main", "contrib", "non-free", "non-free-firmware"]
-    },
-    "arch": {
-      "sourcePath": "archlinux/",
-      "enabled": true,
-      "repos": ["core", "extra", "multilib"]
-    },
-    "fedora": {
-      "sourcePath": "fedora/linux/releases/44/",
-      "enabled": true,
-      "repos": ["Everything"],
-      "excludes": [
-        "Everything/aarch64",
-        "Everything/source",
-        "Everything/x86_64/iso",
-        "Everything/x86_64/images",
-        "Everything/x86_64/debug"
-      ]
-    },
-    "fedora-updates": {
-      "sourcePath": "fedora/linux/updates/44/",
-      "family": "fedora",
-      "enabled": true,
-      "repos": ["Everything"],
-      "excludes": ["Everything/aarch64", "Everything/x86_64/debug"]
-    }
-  }
-}
+```toml
+baseUrl = "rsync://mirror.yandex.ru/"
+targetDir = "/mnt/big/mirrors/"
+logDir = "~/.cache/jazzy"
+
+[distros.debian]
+sourcePath = "debian/"
+enabled = true
+repos = ["main", "contrib", "non-free", "non-free-firmware"]
+
+[distros.arch]
+sourcePath = "archlinux/"
+enabled = true
+repos = ["core", "extra", "multilib"]
+
+[distros.fedora]
+sourcePath = "fedora/linux/releases/44/"
+enabled = true
+repos = ["Everything"]
+excludes = [
+    "Everything/aarch64",
+    "Everything/source",
+    "Everything/x86_64/iso",
+    "Everything/x86_64/images",
+    "Everything/x86_64/debug",
+]
+
+[distros.fedora-updates]
+sourcePath = "fedora/linux/updates/44/"
+family = "fedora"
+enabled = true
+repos = ["Everything"]
+excludes = ["Everything/aarch64", "Everything/x86_64/debug"]
 ```
 
 ### Configuration fields
@@ -169,21 +165,17 @@ Fedora **releases** and **updates** are **two independent repositories** with se
 
 If you want to sync a specific distribution from a different mirror, set `baseUrl` inside the distro config. It overrides the global `baseUrl` for that distribution only:
 
-```json
-{
-  "baseUrl": "rsync://mirror.yandex.ru/",
-  "distros": {
-    "arch": {
-      "sourcePath": "archlinux/",
-      "enabled": true
-    },
-    "debian": {
-      "sourcePath": "debian/",
-      "baseUrl": "rsync://ftp.de.debian.org/",
-      "enabled": true
-    }
-  }
-}
+```toml
+baseUrl = "rsync://mirror.yandex.ru/"
+
+[distros.arch]
+sourcePath = "archlinux/"
+enabled = true
+
+[distros.debian]
+sourcePath = "debian/"
+baseUrl = "rsync://ftp.de.debian.org/"
+enabled = true
 ```
 
 In this example Arch syncs from Yandex, while Debian syncs from `ftp.de.debian.org`.
@@ -192,10 +184,9 @@ In this example Arch syncs from Yandex, while Debian syncs from `ftp.de.debian.o
 
 Use `repos` to sync only specific repositories:
 
-```json
-"arch": {
-  "repos": ["core", "extra", "multilib"]
-}
+```toml
+[distros.arch]
+repos = ["core", "extra", "multilib"]
 ```
 
 Available repositories in a typical Arch mirror:
@@ -207,10 +198,9 @@ The `pool/` directory and metadata files (`lastupdate`, `lastsync`) are always s
 
 Use `repos` to sync only specific sections:
 
-```json
-"debian": {
-  "repos": ["main", "contrib"]
-}
+```toml
+[distros.debian]
+repos = ["main", "contrib"]
 ```
 
 This overrides the `section` field passed to `debmirror`.
@@ -219,18 +209,17 @@ This overrides the `section` field passed to `debmirror`.
 
 Fedora `repos` selects **editions** (`Everything`, `Workstation`, `KDE`, `Silverblue`, etc.) at the top level of the release tree. Use `excludes` to prune unwanted subdirectories (architectures, ISOs, debug symbols):
 
-```json
-"fedora": {
-  "sourcePath": "fedora/linux/releases/44/",
-  "repos": ["Everything"],
-  "excludes": [
+```toml
+[distros.fedora]
+sourcePath = "fedora/linux/releases/44/"
+repos = ["Everything"]
+excludes = [
     "Everything/aarch64",
     "Everything/source",
     "Everything/x86_64/iso",
     "Everything/x86_64/images",
-    "Everything/x86_64/debug"
-  ]
-}
+    "Everything/x86_64/debug",
+]
 ```
 
 **Why this matters:** `Everything/x86_64/os/` (~124 GB) is the actual DNF repository. Without exclusions you also get `iso/`, `images/`, and `debug/` — easily **600+ GB** extra.
@@ -239,18 +228,17 @@ Fedora `repos` selects **editions** (`Everything`, `Workstation`, `KDE`, `Silver
 
 You can define multiple mirrors of the same family under different names. This is required for Fedora because **releases** and **updates** are separate repositories with independent `repodata/`.
 
-```json
-"fedora": {
-  "sourcePath": "fedora/linux/releases/44/",
-  "enabled": true,
-  "repos": ["Everything"]
-},
-"fedora-updates": {
-  "sourcePath": "fedora/linux/updates/44/",
-  "family": "fedora",
-  "enabled": true,
-  "repos": ["Everything"]
-}
+```toml
+[distros.fedora]
+sourcePath = "fedora/linux/releases/44/"
+enabled = true
+repos = ["Everything"]
+
+[distros.fedora-updates]
+sourcePath = "fedora/linux/updates/44/"
+family = "fedora"
+enabled = true
+repos = ["Everything"]
 ```
 
 Both will appear in `jazzy list` and sync with `jazzy sync all`.

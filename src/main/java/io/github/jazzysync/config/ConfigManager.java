@@ -1,8 +1,9 @@
 package io.github.jazzysync.config;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.moandjiezana.toml.Toml;
+import com.moandjiezana.toml.TomlWriter;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,8 +13,7 @@ import java.util.Map;
 
 public class ConfigManager {
     private static final String CONFIG_DIR = "~/.config/jazzy";
-    private static final String CONFIG_FILE = "config.json";
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final String CONFIG_FILE = "config.toml";
 
     private final AppConfig config;
     private final Path targetDir;
@@ -43,9 +43,9 @@ public class ConfigManager {
 
         if (Files.exists(configFile)) {
             try {
-                String json = Files.readString(configFile);
-                return GSON.fromJson(json, AppConfig.class);
-            } catch (IOException e) {
+                Toml toml = new Toml().read(configFile.toFile());
+                return toml.to(AppConfig.class);
+            } catch (Exception e) {
                 System.err.println("Warning: failed to read config, using defaults. " + e.getMessage());
                 return new AppConfig();
             }
@@ -53,7 +53,7 @@ public class ConfigManager {
             AppConfig defaults = new AppConfig();
             try {
                 Files.createDirectories(configDir);
-                Files.writeString(configFile, GSON.toJson(defaults));
+                new TomlWriter().write(defaults, configFile.toFile());
                 System.out.println("Created default config: " + configFile);
             } catch (IOException e) {
                 System.err.println("Warning: failed to create default config. " + e.getMessage());

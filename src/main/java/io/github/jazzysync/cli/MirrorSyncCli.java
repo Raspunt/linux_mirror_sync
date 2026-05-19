@@ -75,7 +75,7 @@ public class MirrorSyncCli implements Callable<Integer> {
                 String status = config.isDistroEnabled(d) ? "enabled" : "disabled";
                 System.out.println("  - " + d + " (" + status + ")");
             }
-            System.out.println("Config file: " + System.getenv("HOME") + "/.config/jazzy/config.json");
+            System.out.println("Config file: " + System.getenv("HOME") + "/.config/jazzy/config.toml");
             return 0;
         }
 
