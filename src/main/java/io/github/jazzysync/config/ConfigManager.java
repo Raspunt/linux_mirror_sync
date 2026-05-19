@@ -31,6 +31,12 @@ public class ConfigManager {
         this.logDir = expandHome(config.getLogDir());
     }
 
+    public ConfigManager(AppConfig config) {
+        this.config = config;
+        this.targetDir = expandHome(config.getTargetDir());
+        this.logDir = expandHome(config.getLogDir());
+    }
+
     private static AppConfig loadOrCreateConfig() {
         Path configDir = expandHome(Paths.get(CONFIG_DIR));
         Path configFile = configDir.resolve(CONFIG_FILE);
@@ -96,13 +102,25 @@ public class ConfigManager {
         return targetDir.resolve(subdir);
     }
 
+    public String getDistroBaseUrl(String distro) {
+        AppConfig.DistroConfig dc = config.getDistros().get(distro);
+        if (dc == null) {
+            throw new IllegalArgumentException("Unknown distro in config: " + distro);
+        }
+        String url = dc.getBaseUrl();
+        if (url != null && !url.isBlank()) {
+            return url.endsWith("/") ? url : url + "/";
+        }
+        return getBaseUrl();
+    }
+
     public String getDistroSourceUrl(String distro) {
         AppConfig.DistroConfig dc = config.getDistros().get(distro);
         if (dc == null) {
             throw new IllegalArgumentException("Unknown distro in config: " + distro);
         }
         String path = dc.getSourcePath();
-        return getBaseUrl() + (path.endsWith("/") ? path : path + "/");
+        return getDistroBaseUrl(distro) + (path.endsWith("/") ? path : path + "/");
     }
 
     public List<String> getDistroSourceUrls(String distro) {
@@ -110,15 +128,15 @@ public class ConfigManager {
         if (dc == null) {
             throw new IllegalArgumentException("Unknown distro in config: " + distro);
         }
+        String base = getDistroBaseUrl(distro);
         List<String> paths = dc.getSourcePaths();
         if (paths != null && !paths.isEmpty()) {
-            String base = getBaseUrl();
             return paths.stream()
                 .map(p -> base + (p.endsWith("/") ? p : p + "/"))
                 .toList();
         }
         String path = dc.getSourcePath();
-        return List.of(getBaseUrl() + (path.endsWith("/") ? path : path + "/"));
+        return List.of(base + (path.endsWith("/") ? path : path + "/"));
     }
 
     public boolean isDistroEnabled(String distro) {

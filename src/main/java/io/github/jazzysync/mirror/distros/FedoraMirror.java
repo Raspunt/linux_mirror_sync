@@ -17,13 +17,18 @@ import java.util.stream.Collectors;
 public class FedoraMirror extends AbstractMirror {
     private final List<String> sourceUrls;
     private final List<String> repos;
+    private final List<String> excludes;
 
-    public FedoraMirror(List<String> sourceUrls, Path targetDir, LogManager logger, List<String> repos) {
-        super("fedora", targetDir, logger, new RsyncStrategy(), buildCheckers(logger));
+    public FedoraMirror(String name, List<String> sourceUrls, Path targetDir, LogManager logger,
+                        List<String> repos, List<String> excludes) {
+        super(name, targetDir, logger,
+              new RsyncStrategy(excludes != null ? excludes : List.of(), repos != null ? repos : List.of()),
+              buildCheckers(logger));
         this.sourceUrls = sourceUrls.stream()
             .map(u -> u.endsWith("/") ? u : u + "/")
             .toList();
         this.repos = repos != null ? repos : List.of();
+        this.excludes = excludes != null ? excludes : List.of();
     }
 
     private static List<IntegrityChecker> buildCheckers(LogManager logger) {
@@ -52,9 +57,24 @@ public class FedoraMirror extends AbstractMirror {
         logger.info("[" + name + "] syncing Fedora from " + sourceUrls.size() + " source(s) to " + targetDir);
         try {
             ensureTargetDir();
+
+            String upToDate = checkUpToDateStatus();
+            if ("yes".equals(upToDate)) {
+                logger.info("[" + name + "] up to date, skipping sync");
+                return;
+            }
+
+            Path logDir = targetDir.resolve(".logs");
+            Files.createDirectories(logDir);
+            String timestamp = java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+            Path logFile = logDir.resolve("sync-" + timestamp + ".log");
+
             for (String url : sourceUrls) {
                 logger.info("[" + name + "] source: " + url);
                 List<String> cmd = syncStrategy.buildSyncCommand(url, targetDir);
+                cmd.add(1, "--log-file=" + logFile);
+                cmd.add(2, "--log-file-format=%f");
                 ProcessResult result = runProcess(cmd, 180);
                 if (result.exitCode() == 0) {
                     logger.info("[" + name + "] done: " + url);
@@ -62,6 +82,9 @@ public class FedoraMirror extends AbstractMirror {
                     logger.error("[" + name + "] Synchronization failed for " + url + " with exit code: " + result.exitCode());
                 }
             }
+
+            verifyChanged(logFile);
+
         } catch (IOException | InterruptedException e) {
             logger.error("[" + name + "] Synchronization error: " + e.getMessage());
             Thread.currentThread().interrupt();
@@ -113,7 +136,7 @@ public class FedoraMirror extends AbstractMirror {
                 for (Path p : bad) {
                     logger.warn("  CORRUPT: " + p);
                 }
-                logger.warn("[" + name + "] run 'jazzy fix fedora' to remove and re-download them");
+                logger.warn("[" + name + "] run 'jazzy fix " + name + "' to remove and re-download them");
             }
         } catch (IOException e) {
             logger.error("[" + name + "] Verification error: " + e.getMessage());
@@ -179,8 +202,6 @@ public class FedoraMirror extends AbstractMirror {
             try {
                 Path tmpRepomd = tmpDir.resolve("repomd.xml");
                 String remotePath = sourceUrls.get(0) + "repodata/repomd.xml";
-                // If repomd.xml is nested (e.g. Everything/x86_64/os/repodata/),
-                // sourceUrl already includes that path, so remotePath is correct.
                 ProcessResult r = runProcessQuiet(List.of(
                     "rsync", "--contimeout=60", "--timeout=120",
                     remotePath, tmpRepomd.toString()
@@ -188,14 +209,35 @@ public class FedoraMirror extends AbstractMirror {
                 if (r.exitCode() != 0) {
                     return "unknown";
                 }
-                long localSize = Files.size(localRepomd);
-                long remoteSize = Files.size(tmpRepomd);
-                return localSize == remoteSize ? "yes" : "no";
+                long mismatch = Files.mismatch(localRepomd, tmpRepomd);
+                return mismatch == -1 ? "yes" : "no";
             } finally {
                 deleteDir(tmpDir);
             }
         } catch (Exception e) {
             return "unknown";
+        }
+    }
+
+    private void verifyChanged(Path logFile) throws IOException {
+        if (!Files.exists(logFile)) return;
+        List<String> changed = Files.readAllLines(logFile).stream()
+            .filter(line -> line.endsWith(".rpm"))
+            .toList();
+        if (changed.isEmpty()) return;
+
+        logger.info("[" + name + "] verifying changed packages...");
+        List<Path> paths = changed.stream()
+            .map(f -> targetDir.resolve(f))
+            .filter(Files::exists)
+            .toList();
+
+        List<Path> bad = verifyWithCheckers(paths);
+        for (Path p : bad) {
+            logger.warn("[" + name + "] CORRUPT: " + p);
+        }
+        if (!bad.isEmpty()) {
+            logger.warn("[" + name + "] run 'jazzy fix " + name + "' to remove and re-download them");
         }
     }
 

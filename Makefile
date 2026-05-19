@@ -4,7 +4,7 @@ MVN    := mvn
 JAR    := target/jazzysync-1.0-SNAPSHOT.jar
 MAIN   := io.github.jazzysync.Main
 
-.PHONY: all build test run clean package install maven-install compile verify help list sync check dist
+.PHONY: all build test run clean package install install-local uninstall uninstall-local maven-install compile verify help list sync check dist
 
 # Цель по умолчанию
 all: package
@@ -35,13 +35,49 @@ package:
 maven-install:
 	$(MVN) -B install
 
-## Системная установка в /opt/jazzysync
+## Системная установка в /opt/jazzysync (требует sudo)
 install: dist
+	@if [ ! -f $(DIST_JAR) ] || [ ! -x $(DIST_JRE) ]; then \
+		echo "ERROR: dist/ is incomplete. Run 'make dist' first."; exit 1; \
+	fi
 	@echo "=== Installing JazzySync to /opt/jazzysync ==="
-	sudo rm -rf /opt/jazzysync
+	@if [ -d /opt/jazzysync ]; then \
+		echo "Backing up old installation to /opt/jazzysync.bak"; \
+		sudo rm -rf /opt/jazzysync.bak; \
+		sudo mv /opt/jazzysync /opt/jazzysync.bak; \
+	fi
 	sudo cp -r dist /opt/jazzysync
 	sudo ln -sf /opt/jazzysync/jazzy /usr/local/bin/jazzy
-	@echo "Installed. Run: jazzy --help"
+	@echo "Installed: jazzy -> /opt/jazzysync/jazzy"
+	@echo "Run: jazzy --help"
+
+## Локальная установка в ~/.local/bin (без sudo)
+install-local: dist
+	@if [ ! -f $(DIST_JAR) ] || [ ! -x $(DIST_JRE) ]; then \
+		echo "ERROR: dist/ is incomplete. Run 'make dist' first."; exit 1; \
+	fi
+	@echo "=== Installing JazzySync to ~/.local/jazzysync ==="
+	@mkdir -p ~/.local/bin
+	@rm -rf ~/.local/jazzysync
+	@cp -r dist ~/.local/jazzysync
+	@ln -sf ~/.local/jazzysync/jazzy ~/.local/bin/jazzy
+	@echo "Installed: ~/.local/bin/jazzy"
+	@echo 'Make sure ~/.local/bin is in your PATH'
+	@echo "Run: jazzy --help"
+
+## Удаление системной установки
+uninstall:
+	@echo "=== Removing JazzySync ==="
+	@sudo rm -rf /opt/jazzysync /opt/jazzysync.bak
+	@sudo rm -f /usr/local/bin/jazzy
+	@echo "Uninstalled."
+
+## Удаление локальной установки
+uninstall-local:
+	@echo "=== Removing local JazzySync ==="
+	@rm -rf ~/.local/jazzysync
+	@rm -f ~/.local/bin/jazzy
+	@echo "Uninstalled."
 
 ## Очистка
  clean:
@@ -96,7 +132,10 @@ help:
 	@echo "  compile   - только компиляция"
 	@echo "  test      - запуск тестов"
 	@echo "  package   - упаковка в fat-jar"
-	@echo "  install   - системная установка в /opt/jazzysync"
+	@echo "  install       - системная установка в /opt/jazzysync (требует sudo)"
+	@echo "  install-local - локальная установка в ~/.local/bin (без sudo)"
+	@echo "  uninstall     - удаление системной установки"
+	@echo "  uninstall-local - удаление локальной установки"
 	@echo "  maven-install - установка в локальный Maven репозиторий"
 	@echo "  clean     - очистка артефактов"
 	@echo "  verify    - полная проверка (clean + verify)"

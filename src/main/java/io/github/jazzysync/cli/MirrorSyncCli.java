@@ -69,7 +69,9 @@ public class MirrorSyncCli implements Callable<Integer> {
 
         if ("list".equalsIgnoreCase(command)) {
             System.out.println("Available distributions:");
-            for (String d : MirrorFactory.availableDistros()) {
+            List<String> distros = new java.util.ArrayList<>(config.getRawConfig().getDistros().keySet());
+            java.util.Collections.sort(distros);
+            for (String d : distros) {
                 String status = config.isDistroEnabled(d) ? "enabled" : "disabled";
                 System.out.println("  - " + d + " (" + status + ")");
             }

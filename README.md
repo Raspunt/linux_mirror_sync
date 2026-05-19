@@ -1,17 +1,44 @@
 # JazzySync — Linux Mirror Sync
 
-A CLI tool (`jazzy`) for managing local Linux distribution mirrors. Supports **Arch Linux**, **Debian**, and **Fedora** with intelligent sync, integrity verification, and repair.
+A CLI tool (`jazzy`) for managing local Linux distribution mirrors through a single JSON configuration. Supports **Arch Linux**, **Debian**, and **Fedora**.
+
+> **What it actually is:** a Java orchestrator that runs `rsync` (and optionally `debmirror`) based on your config. It does **not** generate repository metadata, merge repositories, or fix broken upstream mirrors.
 
 ---
 
-## Features
+## What It Does (and Doesn't)
 
-- **Unified interface** for multiple distributions
-- **Smart sync** — Arch checks `lastupdate` before syncing; Debian uses `debmirror`
-- **Integrity verification** — parallel checking with progress (`zstd` for Arch, `dpkg-deb` for Debian)
-- **Automatic repair** — `fix` removes corrupt packages and re-downloads them
-- **Repository whitelist** — sync only the repositories you need
-- **Portable distribution** — bundled JRE via `jlink`; no Java installation required on target systems
+### ✅ It does
+- Reads one JSON config and runs the right external tool (`rsync` / `debmirror`) for each distribution
+- Filters what to sync: Arch repos, Debian sections, Fedora editions
+- Checks integrity of downloaded packages after sync (`zstd`, `dpkg-deb`, `rpm`)
+- Removes corrupt packages and re-downloads them (`jazzy fix`)
+- Supports per-distribution mirror overrides (`baseUrl` inside distro config)
+- Supports custom distribution entries (e.g. `fedora-updates`) via `family`
+- Bundles a minimal JRE via `jlink` — no Java installation required on target systems
+
+### ❌ It does NOT
+- Generate or repair `repodata/`, `Release` files, or other repository metadata
+- Merge `releases` and `updates` into a single repository (Fedora requires separate entries)
+- Work with HTTP/FTP mirrors — **rsync only**
+- Fix an upstream mirror that is incomplete (e.g. missing `repodata/`)
+- Add new distribution support without writing Java code (see [For Developers](#for-developers))
+
+---
+
+## How It Works
+
+```
+config.json ──► ConfigManager ──► MirrorFactory ──► IMirror
+                                                    ├── ArchMirror ──► rsync
+                                                    ├── DebianMirror ──► debmirror (or rsync)
+                                                    └── FedoraMirror ──► rsync
+```
+
+1. You write `~/.config/jazzy/config.json`
+2. `jazzy sync` reads the config and creates a mirror object for each enabled distribution
+3. Each mirror builds the appropriate external command (`rsync ...` or `debmirror ...`)
+4. Output is logged to both stdout and `~/.cache/jazzy/mirror-sync.log`
 
 ---
 
@@ -21,19 +48,9 @@ A CLI tool (`jazzy`) for managing local Linux distribution mirrors. Supports **A
 
 | Mirror | Required tools |
 |--------|---------------|
-| **Arch Linux** | `rsync` (zstd optional for verify) |
-| **Debian** | `rsync` (dpkg-deb/ar optional for verify) |
-| **Fedora** | `rsync` (rpm optional for verify) |
-
-Install on Arch-based systems:
-```bash
-sudo pacman -S rsync
-```
-
-Install on Debian-based systems:
-```bash
-sudo apt install rsync
-```
+| **Arch Linux** | `rsync` (`zstd` optional for verify) |
+| **Debian** | `rsync` (`debmirror`, `dpkg-deb`/`ar` optional) |
+| **Fedora** | `rsync` (`rpm` optional for verify) |
 
 ### Build dependencies (only if building from source)
 
@@ -47,8 +64,8 @@ sudo apt install rsync
 ### Option 1: Build from source
 
 ```bash
-git clone <repository-url>
-cd JazzySync
+git clone https://github.com/Raspunt/linux_mirror_sync.git
+cd linux_mirror_sync
 make dist
 ./dist/jazzy list
 ```
@@ -59,14 +76,19 @@ The `make dist` command:
 3. Builds a minimal bundled JRE (~40 MB) via `jlink`
 4. Creates a portable `dist/` directory
 
-### Option 2: Download pre-built release
-
-Download `jazzysync-linux-x64.tar.gz` from the [Releases](https://github.com/.../releases) page:
+### Option 2: System-wide install
 
 ```bash
-tar xzf jazzysync-linux-x64.tar.gz
-cd jazzysync
-./jazzy sync
+sudo make install
+jazzy --help
+```
+
+### Option 3: Local install (no sudo)
+
+```bash
+make install-local
+# ensure ~/.local/bin is in your PATH
+jazzy --help
 ```
 
 > **Note:** The bundled JRE is built for **x86_64 (amd64)** Linux. For ARM or other architectures you must build from source on the target machine.
@@ -79,11 +101,13 @@ Configuration file: `~/.config/jazzy/config.json`
 
 Created automatically with sensible defaults on the first run.
 
-### Example configuration
+### Recommended Fedora configuration
+
+Fedora **releases** and **updates** are **two independent repositories** with separate `repodata/`. You **must** define them as separate entries:
 
 ```json
 {
-  "baseUrl": "rsync://mirror.ps.kz/",
+  "baseUrl": "rsync://mirror.yandex.ru/",
   "targetDir": "/mnt/big/mirrors/",
   "logDir": "~/.cache/jazzy",
   "distros": {
@@ -98,11 +122,23 @@ Created automatically with sensible defaults on the first run.
       "repos": ["core", "extra", "multilib"]
     },
     "fedora": {
-      "sourcePaths": [
-        "fedora/linux/releases/44/"
-      ],
+      "sourcePath": "fedora/linux/releases/44/",
       "enabled": true,
-      "repos": []
+      "repos": ["Everything"],
+      "excludes": [
+        "Everything/aarch64",
+        "Everything/source",
+        "Everything/x86_64/iso",
+        "Everything/x86_64/images",
+        "Everything/x86_64/debug"
+      ]
+    },
+    "fedora-updates": {
+      "sourcePath": "fedora/linux/updates/44/",
+      "family": "fedora",
+      "enabled": true,
+      "repos": ["Everything"],
+      "excludes": ["Everything/aarch64", "Everything/x86_64/debug"]
     }
   }
 }
@@ -121,10 +157,36 @@ Created automatically with sensible defaults on the first run.
 | Field | Description | Applies to |
 |-------|-------------|------------|
 | `sourcePath` | Path on the rsync server (single source) | All |
-| `sourcePaths` | List of paths for multi-source sync | Fedora, or any distro |
+| `sourcePaths` | List of paths for multi-source sync | Any distro |
 | `enabled` | Enable or disable this distribution | All |
 | `repos` | Whitelist/filters (Arch: repo names; Debian: sections; Fedora: editions) | All |
+| `excludes` | Paths to exclude from sync (supports subdirectories inside included repos) | All |
+| `baseUrl` | Override global `baseUrl` for this distribution only | All |
+| `family` | Mirror family/provider to use (e.g. `"fedora"` for custom distro names) | All |
 | `properties` | Extra key-value settings (Debian: host, root, dist, arch, section) | Debian only |
+
+### Per-distribution mirror override
+
+If you want to sync a specific distribution from a different mirror, set `baseUrl` inside the distro config. It overrides the global `baseUrl` for that distribution only:
+
+```json
+{
+  "baseUrl": "rsync://mirror.yandex.ru/",
+  "distros": {
+    "arch": {
+      "sourcePath": "archlinux/",
+      "enabled": true
+    },
+    "debian": {
+      "sourcePath": "debian/",
+      "baseUrl": "rsync://ftp.de.debian.org/",
+      "enabled": true
+    }
+  }
+}
+```
+
+In this example Arch syncs from Yandex, while Debian syncs from `ftp.de.debian.org`.
 
 ### Arch repository whitelist
 
@@ -153,6 +215,76 @@ Use `repos` to sync only specific sections:
 
 This overrides the `section` field passed to `debmirror`.
 
+### Fedora edition whitelist and exclusions
+
+Fedora `repos` selects **editions** (`Everything`, `Workstation`, `KDE`, `Silverblue`, etc.) at the top level of the release tree. Use `excludes` to prune unwanted subdirectories (architectures, ISOs, debug symbols):
+
+```json
+"fedora": {
+  "sourcePath": "fedora/linux/releases/44/",
+  "repos": ["Everything"],
+  "excludes": [
+    "Everything/aarch64",
+    "Everything/source",
+    "Everything/x86_64/iso",
+    "Everything/x86_64/images",
+    "Everything/x86_64/debug"
+  ]
+}
+```
+
+**Why this matters:** `Everything/x86_64/os/` (~124 GB) is the actual DNF repository. Without exclusions you also get `iso/`, `images/`, and `debug/` — easily **600+ GB** extra.
+
+### Custom distributions with `family`
+
+You can define multiple mirrors of the same family under different names. This is required for Fedora because **releases** and **updates** are separate repositories with independent `repodata/`.
+
+```json
+"fedora": {
+  "sourcePath": "fedora/linux/releases/44/",
+  "enabled": true,
+  "repos": ["Everything"]
+},
+"fedora-updates": {
+  "sourcePath": "fedora/linux/updates/44/",
+  "family": "fedora",
+  "enabled": true,
+  "repos": ["Everything"]
+}
+```
+
+Both will appear in `jazzy list` and sync with `jazzy sync all`.
+
+---
+
+## Distribution-Specific Notes
+
+### Arch Linux
+- Update detection: compares `lastupdate` timestamp file before running rsync
+- Integrity check: `zstd -t <file>` on changed packages after sync
+- Post-sync verification is incremental (only new/modified packages)
+
+### Debian
+- If `debmirror` is installed, it is used automatically. Otherwise falls back to plain `rsync`
+- Integrity checks: `dpkg-deb -I` or `ar x` + `tar tf`
+
+### Fedora
+- **No pre-sync update detection** — always runs rsync (but skips if `repomd.xml` is unchanged)
+- `repos` acts as `rsync --include` filters on the top-level directories inside `sourcePath`
+- `excludes` are applied **inside** included directories (e.g. exclude `Everything/aarch64` while keeping `Everything/x86_64`)
+- Integrity check: `rpm -K --nosignature`
+- **Important:** if your upstream mirror does not provide `repodata/` (e.g. `mirror.ps.kz`), DNF will not work. Switch to a full mirror like `mirror.yandex.ru`.
+
+---
+
+## Limitations
+
+- **No metadata generation.** If `repodata/` is missing on the upstream mirror, `jazzysync` cannot create it. DNF will fail.
+- **No repository merging.** You cannot merge Fedora `releases/` and `updates/` into one directory. They must remain separate.
+- **rsync only.** No HTTP, FTP, or BitTorrent support.
+- **No built-in scheduling.** Use `cron` or `systemd timers` for periodic sync.
+- **x86_64 JRE only.** The bundled JRE is pre-built for amd64 Linux.
+
 ---
 
 ## CLI Usage
@@ -162,7 +294,7 @@ Usage: jazzy [-hV] [-t=<targetDir>] <COMMAND> [TARGET]
 
 Arguments:
   <COMMAND>  Command to execute: sync, verify, check, fix, status, list
-  [TARGET]   Distribution to process: arch, debian, fedora, or all (default: all)
+  [TARGET]   Distribution to process, or all (default: all)
 
 Options:
   -t, --target-dir=<targetDir>  Override target directory for mirrors
@@ -176,7 +308,7 @@ Options:
 |---------|-------------|-------|
 | `sync` | Synchronize mirror(s) with upstream | ⚠️ Modifies files |
 | `check` | Dry-run; show what would change | ✅ Read-only |
-| `verify` | Verify integrity of local packages (if tools available) | ✅ Read-only |
+| `verify` | Verify integrity of local packages | ✅ Read-only |
 | `fix` | Remove corrupt packages and re-download | ⚠️ Deletes bad files |
 | `status` | Show mirror status, size, last sync | ✅ Read-only |
 | `list` | List configured distributions | ✅ Read-only |
@@ -208,6 +340,30 @@ jazzy list
 
 ---
 
+## For Developers
+
+### Architecture
+
+```
+IMirror (interface)
+├── ArchMirror    → RsyncStrategy
+├── DebianMirror  → DebmirrorStrategy (or RsyncStrategy fallback)
+└── FedoraMirror  → RsyncStrategy
+```
+
+- **Java acts as an orchestrator** — launches external tools via `ProcessBuilder`
+- **Template method pattern** — `AbstractMirror` defines common logic; subclasses provide distribution-specific details
+- **Parallel verification** — `ExternalToolChecker` uses `ExecutorService` with all CPU cores
+
+### Adding a new distribution
+
+1. Implement `MirrorProvider` (see `FedoraMirrorProvider` as example)
+2. Register it in `MirrorFactory.registerDefaults()`
+3. Set `family` in config to match `provider.getFamily()`
+4. Rebuild with `make dist`
+
+---
+
 ## Makefile Targets
 
 | Target | Description |
@@ -219,6 +375,10 @@ jazzy list
 | `make test` | Run tests |
 | `make clean` | Clean build artifacts |
 | `make verify` | Full verification (clean + test + package) |
+| `make install` | System-wide install to `/opt/jazzysync` |
+| `make install-local` | Local install to `~/.local/jazzysync` |
+| `make uninstall` | Remove system installation |
+| `make uninstall-local` | Remove local installation |
 
 ---
 
@@ -235,21 +395,6 @@ Each mirror also maintains its own sync logs in the mirror directory:
 ```
 /mnt/big/mirrors/archlinux/.logs/sync-YYYYMMDD-HHMMSS.log
 ```
-
----
-
-## Architecture
-
-```
-IMirror (interface)
-├── ArchMirror    → rsync (zstd optional)
-├── DebianMirror  → rsync (debmirror/dpkg-deb optional)
-└── FedoraMirror  → rsync (rpm optional)
-```
-
-- **Java acts as an orchestrator** — it launches external tools (`rsync`, `debmirror`, `zstd`, `dpkg-deb`) via `ProcessBuilder`
-- **Parallel verification** — uses `ExecutorService` with all available CPU cores
-- **Template method pattern** — `AbstractMirror` defines the `getStatus()` algorithm; subclasses provide only distribution-specific details
 
 ---
 

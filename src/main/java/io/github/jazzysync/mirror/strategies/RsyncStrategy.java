@@ -48,14 +48,20 @@ public class RsyncStrategy implements SyncStrategy {
     }
 
     private void addFilters(List<String> cmd) {
+        // First: include the top-level directories themselves
         for (String in : includes) {
             String i = in.endsWith("/") ? in : in + "/";
             cmd.add("--include=/" + i);
-            cmd.add("--include=/" + i + "**");
         }
+        // Second: apply exclusions before recursive includes
         for (String ex : excludes) {
             String e = ex.endsWith("/") ? ex : ex + "/";
             cmd.add("--exclude=/" + e);
+        }
+        // Third: include contents recursively
+        for (String in : includes) {
+            String i = in.endsWith("/") ? in : in + "/";
+            cmd.add("--include=/" + i + "**");
         }
         if (!includes.isEmpty()) {
             cmd.add("--exclude=*");

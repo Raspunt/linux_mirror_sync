@@ -70,7 +70,7 @@ public class MirrorFactory {
         return mirrors;
     }
 
-    public static List<String> availableDistros() {
-        return List.of("arch", "debian", "fedora");
+    public List<String> availableDistros() {
+        return new ArrayList<>(config.getRawConfig().getDistros().keySet());
     }
 }

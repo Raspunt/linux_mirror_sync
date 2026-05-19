@@ -29,6 +29,7 @@ public class AppConfig {
         private String sourcePath;
         private String family;
         private boolean enabled = true;
+        private String baseUrl;
         private List<String> sourcePaths;
         private List<String> repos;
         private List<String> excludes;
@@ -50,6 +51,9 @@ public class AppConfig {
 
         public boolean isEnabled() { return enabled; }
         public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+        public String getBaseUrl() { return baseUrl; }
+        public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
 
         public List<String> getSourcePaths() { return sourcePaths; }
         public void setSourcePaths(List<String> sourcePaths) { this.sourcePaths = sourcePaths; }

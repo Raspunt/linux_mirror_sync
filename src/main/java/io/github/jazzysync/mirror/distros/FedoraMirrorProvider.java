@@ -17,6 +17,7 @@ public class FedoraMirrorProvider implements MirrorProvider {
         var sourceUrls = config.getDistroSourceUrls(name);
         java.nio.file.Path targetDir = config.getDistroTarget(name);
         var repos = config.getDistroRepos(name);
-        return new FedoraMirror(sourceUrls, targetDir, logger, repos);
+        var excludes = config.getDistroExcludes(name);
+        return new FedoraMirror(name, sourceUrls, targetDir, logger, repos, excludes);
     }
 }
