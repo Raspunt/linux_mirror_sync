@@ -44,25 +44,40 @@ public class ConfigManager {
         Path configDir = expandHome(Paths.get(CONFIG_DIR));
         Path configFile = configDir.resolve(CONFIG_FILE);
 
+        boolean created = false;
+        AppConfig config;
+
         if (Files.exists(configFile)) {
             try {
                 TomlParseResult result = Toml.parse(configFile);
-                return parseConfig(result);
+                config = parseConfig(result);
             } catch (Exception e) {
                 System.err.println("Warning: failed to read config, using defaults. " + e.getMessage());
-                return new AppConfig();
+                config = new AppConfig();
             }
         } else {
-            AppConfig defaults = new AppConfig();
+            config = new AppConfig();
             try {
                 Files.createDirectories(configDir);
-                Files.writeString(configFile, toToml(defaults));
+                Files.writeString(configFile, toToml(config));
                 System.out.println("Created default config: " + configFile);
+                created = true;
             } catch (IOException e) {
                 System.err.println("Warning: failed to create default config. " + e.getMessage());
             }
-            return defaults;
         }
+
+        if (config.getBaseUrl() == null || config.getBaseUrl().isBlank()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("baseUrl is not configured. Please set baseUrl in ").append(configFile).append("\n");
+            sb.append("Example: baseUrl = \"rsync://mirror.yandex.ru/\"");
+            if (created) {
+                sb.append("\nA default config has been created for you.");
+            }
+            throw new IllegalStateException(sb.toString());
+        }
+
+        return config;
     }
 
     private static AppConfig parseConfig(TomlParseResult toml) {
@@ -116,7 +131,12 @@ public class ConfigManager {
 
     private static String toToml(AppConfig config) {
         StringBuilder sb = new StringBuilder();
-        sb.append("baseUrl = \"").append(escape(config.getBaseUrl())).append("\"\n");
+        if (config.getBaseUrl() != null && !config.getBaseUrl().isBlank()) {
+            sb.append("baseUrl = \"").append(escape(config.getBaseUrl())).append("\"\n");
+        } else {
+            sb.append("# Set your mirror base URL, e.g.:\n");
+            sb.append("# baseUrl = \"rsync://mirror.yandex.ru/\"\n");
+        }
         sb.append("targetDir = \"").append(escape(config.getTargetDir())).append("\"\n");
         sb.append("logDir = \"").append(escape(config.getLogDir())).append("\"\n\n");
         for (Map.Entry<String, AppConfig.DistroConfig> e : config.getDistros().entrySet()) {

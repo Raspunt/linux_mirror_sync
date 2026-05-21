@@ -135,6 +135,13 @@ jazzy --help
 
 ---
 
+## Documentation
+
+- [Client Setup](docs/CLIENT_SETUP.md) — configure **pacman**, **apt**, and **dnf** to use your local mirror
+- [Docker Mirror Setup](docs/DOCKER_SETUP.md) — run HTTP + rsync mirror server with Docker
+
+---
+
 ## Configuration
 
 Configuration file: `~/.config/jazzy/config.toml`

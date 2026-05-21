@@ -61,10 +61,15 @@ public class MirrorSyncCli implements Callable<Integer> {
         }
 
         ConfigManager config;
-        if (targetDir != null && !targetDir.isBlank()) {
-            config = new ConfigManager(targetDir);
-        } else {
-            config = new ConfigManager();
+        try {
+            if (targetDir != null && !targetDir.isBlank()) {
+                config = new ConfigManager(targetDir);
+            } else {
+                config = new ConfigManager();
+            }
+        } catch (IllegalStateException e) {
+            System.err.println("Configuration error: " + e.getMessage());
+            return 1;
         }
 
         if ("list".equalsIgnoreCase(command)) {
