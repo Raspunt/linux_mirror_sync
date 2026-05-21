@@ -17,34 +17,32 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class DebianMirror extends AbstractMirror {
-    private final String sourceHost;
-    private final String sourceRoot;
+    private final String sourceUrl;
     private final String dist;
     private final String arch;
     private final String section;
     private final List<String> repos;
 
-    public DebianMirror(String sourceHost, String sourceRoot, String dist, String arch, String section,
+    public DebianMirror(String sourceUrl, String dist, String arch, String section,
                         Path targetDir, LogManager logger, List<String> repos) {
         super("debian", targetDir, logger,
-              buildSyncStrategy(sourceHost, sourceRoot, dist, arch, section),
+              buildSyncStrategy(dist, arch, section),
               buildCheckers(logger));
-        this.sourceHost = sourceHost;
-        this.sourceRoot = sourceRoot.startsWith("/") ? sourceRoot : "/" + sourceRoot;
+        this.sourceUrl = sourceUrl;
         this.dist = dist;
         this.arch = arch;
         this.section = section;
         this.repos = repos != null ? repos : List.of();
     }
 
-    private static SyncStrategy buildSyncStrategy(String host, String root, String dist, String arch, String section) {
+    private static SyncStrategy buildSyncStrategy(String dist, String arch, String section) {
         try {
             ProcessBuilder pb = new ProcessBuilder("sh", "-c", "command -v debmirror");
             pb.redirectErrorStream(true);
             Process p = pb.start();
             boolean finished = p.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
             if (finished && p.exitValue() == 0) {
-                return new DebmirrorStrategy(host, root, dist, arch, section);
+                return new DebmirrorStrategy(dist, arch, section);
             }
         } catch (Exception e) {
             // debmirror not available
@@ -82,7 +80,7 @@ public class DebianMirror extends AbstractMirror {
         logger.info("[" + name + "] syncing Debian " + dist + "...");
         try {
             ensureTargetDir();
-            List<String> cmd = syncStrategy.buildSyncCommand(null, targetDir);
+            List<String> cmd = syncStrategy.buildSyncCommand(sourceUrl, targetDir);
             ProcessResult result = runProcess(cmd, 180);
             if (result.exitCode() == 0) {
                 logger.info("[" + name + "] done");
@@ -99,7 +97,7 @@ public class DebianMirror extends AbstractMirror {
     public void checkRepo() {
         logger.info("[" + name + "] checking Debian " + dist + " for updates...");
         try {
-            List<String> cmd = syncStrategy.buildCheckCommand(null, targetDir);
+            List<String> cmd = syncStrategy.buildCheckCommand(sourceUrl, targetDir);
             ProcessResult result = runProcess(cmd, 60);
             if (result.exitCode() == 0) {
                 logger.info("[" + name + "] Check completed");

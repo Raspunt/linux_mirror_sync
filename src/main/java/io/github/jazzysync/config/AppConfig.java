@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public class AppConfig {
-    private String baseUrl = "rsync://mirror.yandex.ru/";
+    private String baseUrl;
     private String targetDir = "~/mirrors";
     private String logDir = "~/.cache/jazzy";
     private java.util.LinkedHashMap<String, DistroConfig> distros = new java.util.LinkedHashMap<>(Map.of(

@@ -63,6 +63,38 @@ config.toml ──► ConfigManager ──► MirrorFactory ──► IMirror
 
 ### Option 1: Build from source
 
+#### Prerequisites
+
+You need **JDK 21+** and **Maven 3.9+**.  
+If your distribution ships older versions (e.g. Debian 12 has JDK 17), install a modern JDK first.
+
+**Debian / Ubuntu (via Eclipse Temurin)**
+
+```bash
+sudo apt install -y wget apt-transport-https gnupg
+wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | sudo gpg --dearmor -o /usr/share/keyrings/adoptium.gpg
+echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
+sudo apt update
+sudo apt install temurin-21-jdk
+
+# Ensure JAVA_HOME points to the new JDK
+echo 'export JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64' >> ~/.bashrc
+source ~/.bashrc
+java -version   # should print OpenJDK 21
+```
+
+**Any distro (via SDKMAN)**
+
+```bash
+curl -s "https://get.sdkman.io" | bash
+source "$HOME/.sdkman/bin/sdkman-init.sh"
+sdk install java 21.0.5-tem
+sdk install maven 3.9.9
+sdk default java 21.0.5-tem
+```
+
+#### Build
+
 ```bash
 git clone https://github.com/Raspunt/JazzySync.git
 cd JazzySync
@@ -70,7 +102,15 @@ make dist
 ./dist/jazzy list
 ```
 
+> **Note for Temurin users:** if `make dist` fails with `jdeps: not found` or `jlink: not found`, the Makefile may be looking under `/usr/lib/jvm/java-21-openjdk/`. Either export `JAVA_HOME` explicitly (`export JAVA_HOME=/usr/lib/jvm/temurin-21-jdk-amd64`) or create compatibility symlinks:
+> ```bash
+> sudo mkdir -p /usr/lib/jvm/java-21-openjdk/bin
+> sudo ln -sf /usr/lib/jvm/temurin-21-jdk-amd64/bin/jdeps /usr/lib/jvm/java-21-openjdk/bin/jdeps
+> sudo ln -sf /usr/lib/jvm/temurin-21-jdk-amd64/bin/jlink /usr/lib/jvm/java-21-openjdk/bin/jlink
+> ```
+
 The `make dist` command:
+
 1. Compiles the project with Maven
 2. Analyzes required JDK modules via `jdeps`
 3. Builds a minimal bundled JRE (~40 MB) via `jlink`

@@ -67,7 +67,7 @@ public class ConfigManager {
 
     private static AppConfig parseConfig(TomlParseResult toml) {
         AppConfig config = new AppConfig();
-        config.setBaseUrl(toml.getString("baseUrl", () -> "rsync://mirror.yandex.ru/"));
+        config.setBaseUrl(toml.getString("baseUrl"));
         config.setTargetDir(toml.getString("targetDir", () -> "~/mirrors"));
         config.setLogDir(toml.getString("logDir", () -> "~/.cache/jazzy"));
 
@@ -180,6 +180,11 @@ public class ConfigManager {
 
     public String getBaseUrl() {
         String url = config.getBaseUrl();
+        if (url == null || url.isBlank()) {
+            throw new IllegalStateException(
+                "baseUrl is not configured. Please set baseUrl in ~/.config/jazzy/config.toml"
+            );
+        }
         return url.endsWith("/") ? url : url + "/";
     }
 
