@@ -60,17 +60,14 @@ public class MirrorSyncCli implements Callable<Integer> {
             return 0;
         }
 
-        ConfigManager config;
-        try {
-            if (targetDir != null && !targetDir.isBlank()) {
-                config = new ConfigManager(targetDir);
-            } else {
-                config = new ConfigManager();
-            }
-        } catch (IllegalStateException e) {
-            System.err.println("Configuration error: " + e.getMessage());
-            return 1;
-        }
+
+
+        ConfigManager config = new ConfigManager();
+        LogManager logger = new LogManager(config.getLogDir());
+
+        logger.info("Our mirrors are located in: " + config.getTargetDir().toString());
+        logger.info("JazzySync uses the remote mirror: " + config.getBaseUrl());
+
 
         if ("list".equalsIgnoreCase(command)) {
             System.out.println("Available distributions:");
@@ -80,13 +77,12 @@ public class MirrorSyncCli implements Callable<Integer> {
                 String status = config.isDistroEnabled(d) ? "enabled" : "disabled";
                 System.out.println("  - " + d + " (" + status + ")");
             }
-            System.out.println("Config file: " + System.getenv("HOME") + "/.config/jazzy/config.toml");
+            logger.info("Configuration file: " + System.getenv("HOME") + "/.config/jazzy/config.toml");
             return 0;
         }
 
         String effectiveTarget = resolveTarget();
 
-        LogManager logger = new LogManager(config.getLogDir());
         MirrorFactory factory = new MirrorFactory(config, logger);
 
         List<IMirror> mirrors;

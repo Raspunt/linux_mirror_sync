@@ -26,6 +26,7 @@ public class ConfigManager {
         this.config = loadOrCreateConfig();
         this.targetDir = expandHome(config.getTargetDir());
         this.logDir = expandHome(config.getLogDir());
+
     }
 
     public ConfigManager(String targetDirOverride) {
